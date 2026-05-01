@@ -1,0 +1,13 @@
+[mysqld]
+server-id=1
+log-bin=mysql-bin
+binlog_format=ROW
+gtid-mode=ON
+enforce-gtid-consistency=ON
+log_replica_updates=ON
+auto-increment-increment=2
+auto-increment-offset=1
+relay-log=relay-bin
+replica-parallel-workers=4
+replica-preserve-commit-order=ON
+report-host=mysql-master1

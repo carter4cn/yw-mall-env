@@ -1,0 +1,669 @@
+networks:
+  infra:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24
+
+services:
+
+  # =======================
+  # ETCD 集群（3节点）
+  # =======================
+  etcd1:
+    image: quay.io/coreos/etcd:v3.5.11
+    container_name: etcd1
+    command:
+      - etcd
+      - --name=etcd1
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - --initial-cluster-state=new
+      - --initial-advertise-peer-urls=http://etcd1:2380
+      - --advertise-client-urls=http://etcd1:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --data-dir=/etcd-data
+    ports:
+      - "2379:2379"
+    volumes:
+      - ./data/etcd/1:/etcd-data
+    networks: [infra]
+
+  etcd2:
+    image: quay.io/coreos/etcd:v3.5.11
+    container_name: etcd2
+    command:
+      - etcd
+      - --name=etcd2
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - --initial-cluster-state=new
+      - --initial-advertise-peer-urls=http://etcd2:2380
+      - --advertise-client-urls=http://etcd2:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --data-dir=/etcd-data
+    volumes:
+      - ./data/etcd/2:/etcd-data
+    networks: [infra]
+
+  etcd3:
+    image: quay.io/coreos/etcd:v3.5.11
+    container_name: etcd3
+    command:
+      - etcd
+      - --name=etcd3
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - --initial-cluster-state=new
+      - --initial-advertise-peer-urls=http://etcd3:2380
+      - --advertise-client-urls=http://etcd3:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --data-dir=/etcd-data
+    volumes:
+      - ./data/etcd/3:/etcd-data
+    networks: [infra]
+
+  # =======================
+  # Etcd Keeper（Web UI）
+  # =======================
+  etcdkeeper:
+    image: docker.io/evildecay/etcdkeeper:v0.7.6
+    container_name: etcdkeeper
+    depends_on:
+      - etcd1
+    environment:
+      - ETCD_HOSTS=http://etcd1:2379
+    ports:
+      - "8089:8080"
+    networks: [infra]
+
+  # =======================
+  # Kafka（KRaft 3节点）
+  # =======================
+  kafka1:
+    image: docker.io/apache/kafka:4.2.0
+    container_name: kafka1
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CLUSTER_ID=q1Sh-9_ISia_zwGINzRvyQ
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka1:9093,2@kafka2:9093,3@kafka3:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,EXTERNAL://:19092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka1:9092,EXTERNAL://localhost:19092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+    ports:
+      - "19092:19092"
+    volumes:
+      - ./data/kafka/1:/var/kafka-logs
+    networks: [infra]
+
+  kafka2:
+    image: docker.io/apache/kafka:4.2.0
+    container_name: kafka2
+    environment:
+      - KAFKA_NODE_ID=2
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CLUSTER_ID=q1Sh-9_ISia_zwGINzRvyQ
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka1:9093,2@kafka2:9093,3@kafka3:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,EXTERNAL://:19093,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka2:9092,EXTERNAL://localhost:19093
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+    ports:
+      - "19093:19093"
+    volumes:
+      - ./data/kafka/2:/var/kafka-logs
+    networks: [infra]
+
+  kafka3:
+    image: docker.io/apache/kafka:4.2.0
+    container_name: kafka3
+    environment:
+      - KAFKA_NODE_ID=3
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CLUSTER_ID=q1Sh-9_ISia_zwGINzRvyQ
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka1:9093,2@kafka2:9093,3@kafka3:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,EXTERNAL://:19094,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka3:9092,EXTERNAL://localhost:19094
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+    ports:
+      - "19094:19094"
+    volumes:
+      - ./data/kafka/3:/var/kafka-logs
+    networks: [infra]
+
+  kafka-exporter:
+    image: docker.io/danielqsj/kafka-exporter:latest
+    container_name: kafka-exporter
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    command:
+      - --kafka.server=kafka1:9092
+      - --kafka.server=kafka2:9092
+      - --kafka.server=kafka3:9092
+    ports:
+      - "9308:9308"
+    restart: on-failure
+    networks:
+      - infra
+
+  # =======================
+  # Kafka UI
+  # =======================
+  kafka-ui:
+    image: docker.io/provectuslabs/kafka-ui:v0.7.2
+    container_name: kafka-ui
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka1:9092,kafka2:9092,kafka3:9092
+    ports:
+      - "8088:8080"
+    restart: on-failure
+    networks: [infra]
+
+  # =======================
+  # Pulsar 集群（ZK + BK + Broker）
+  # =======================
+  pulsar-zk:
+    image: docker.io/apachepulsar/pulsar:4.2.0
+    container_name: pulsar-zk
+    command: >
+      bash -c "bin/apply-config-from-env.py conf/zookeeper.conf && bin/pulsar zookeeper"
+    environment:
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=256m
+    volumes:
+      - ./data/pulsar/zk:/pulsar/data/zookeeper
+    networks: [infra]
+
+  pulsar-init:
+    image: docker.io/apachepulsar/pulsar:4.2.0
+    container_name: pulsar-init
+    depends_on:
+      - pulsar-zk
+    command: >
+      bash -c "until bin/pulsar zookeeper-shell -server pulsar-zk:2181 ls /; do sleep 2; done &&
+      bin/pulsar initialize-cluster-metadata --cluster pulsar-cluster
+      --zookeeper pulsar-zk:2181
+      --configuration-store pulsar-zk:2181
+      --web-service-url http://pulsar-broker1:8080,http://pulsar-broker2:8080
+      --broker-service-url pulsar://pulsar-broker1:6650,pulsar://pulsar-broker2:6650 || true"
+    networks: [infra]
+
+  pulsar-bookie1:
+    image: docker.io/apachepulsar/pulsar:4.2.0
+    container_name: pulsar-bookie1
+    depends_on:
+      - pulsar-init
+    command: >
+      bash -c "bin/apply-config-from-env.py conf/bookkeeper.conf && bin/pulsar bookie"
+    environment:
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=512m
+      - clusterName=pulsar-cluster
+      - zkServers=pulsar-zk:2181
+      - httpServerEnabled=true
+      - statsProviderClass=org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+    volumes:
+      - ./data/pulsar/bk1:/pulsar/data/bookkeeper
+    networks: [infra]
+
+  pulsar-bookie2:
+    image: docker.io/apachepulsar/pulsar:4.2.0
+    container_name: pulsar-bookie2
+    depends_on:
+      - pulsar-init
+    command: >
+      bash -c "bin/apply-config-from-env.py conf/bookkeeper.conf && bin/pulsar bookie"
+    environment:
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=512m
+      - clusterName=pulsar-cluster
+      - zkServers=pulsar-zk:2181
+      - httpServerEnabled=true
+      - statsProviderClass=org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+    volumes:
+      - ./data/pulsar/bk2:/pulsar/data/bookkeeper
+    networks: [infra]
+
+  pulsar-bookie3:
+    image: docker.io/apachepulsar/pulsar:4.2.0
+    container_name: pulsar-bookie3
+    depends_on:
+      - pulsar-init
+    command: >
+      bash -c "bin/apply-config-from-env.py conf/bookkeeper.conf && bin/pulsar bookie"
+    environment:
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=512m
+      - clusterName=pulsar-cluster
+      - zkServers=pulsar-zk:2181
+      - httpServerEnabled=true
+      - statsProviderClass=org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+    volumes:
+      - ./data/pulsar/bk3:/pulsar/data/bookkeeper
+    networks: [infra]
+
+  pulsar-broker1:
+    image: docker.io/apachepulsar/pulsar:4.2.0
+    container_name: pulsar-broker1
+    depends_on:
+      - pulsar-bookie1
+      - pulsar-bookie2
+      - pulsar-bookie3
+    command: >
+      bash -c "bin/apply-config-from-env.py conf/broker.conf && bin/pulsar broker"
+    environment:
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=512m
+      - clusterName=pulsar-cluster
+      - zookeeperServers=pulsar-zk:2181
+      - configurationStoreServers=pulsar-zk:2181
+      - managedLedgerDefaultEnsembleSize=2
+      - managedLedgerDefaultWriteQuorum=2
+      - managedLedgerDefaultAckQuorum=2
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    networks: [infra]
+
+  pulsar-broker2:
+    image: docker.io/apachepulsar/pulsar:4.2.0
+    container_name: pulsar-broker2
+    depends_on:
+      - pulsar-bookie1
+      - pulsar-bookie2
+      - pulsar-bookie3
+    command: >
+      bash -c "bin/apply-config-from-env.py conf/broker.conf && bin/pulsar broker"
+    environment:
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=512m
+      - clusterName=pulsar-cluster
+      - zookeeperServers=pulsar-zk:2181
+      - configurationStoreServers=pulsar-zk:2181
+      - managedLedgerDefaultEnsembleSize=2
+      - managedLedgerDefaultWriteQuorum=2
+      - managedLedgerDefaultAckQuorum=2
+    ports:
+      - "6651:6650"
+      - "8081:8080"
+    networks: [infra]
+
+  # =======================
+  # Pulsar Manager（Web UI）
+  # =======================
+  pulsar-manager:
+    image: docker.io/apachepulsar/pulsar-manager:v0.4.0
+    container_name: pulsar-manager
+    depends_on:
+      - pulsar-broker1
+    environment:
+      - SPRING_CONFIGURATION_FILE=/pulsar-manager/pulsar-manager/application.properties
+    ports:
+      - "9527:9527"
+      - "7750:7750"
+    networks: [infra]
+
+  # =======================
+  # MinIO（分布式）
+  # =======================
+  minio:
+    image: docker.io/minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./data/minio:/data
+    networks: [infra]
+
+  # =======================
+  # Prometheus
+  # =======================
+  prometheus:
+    image: docker.io/prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks: [infra]
+
+  # =======================
+  # Grafana
+  # =======================
+  grafana:
+    image: docker.io/grafana/grafana:13.0.1
+    container_name: grafana
+    depends_on:
+      - es1
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks: [infra]
+
+
+  # =======================
+  # Elasticsearch 集群
+  # =======================
+  es1:
+    image: docker.io/library/elasticsearch:9.3.3
+    container_name: es1
+    environment:
+      - node.name=es1
+      - cluster.name=es-cluster
+      - discovery.seed_hosts=es2,es3
+      - cluster.initial_master_nodes=es1,es2,es3
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - ./data/es/1:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks: [infra]
+
+  es2:
+    image: docker.io/library/elasticsearch:9.3.3
+    container_name: es2
+    environment:
+      - node.name=es2
+      - cluster.name=es-cluster
+      - discovery.seed_hosts=es1,es3
+      - cluster.initial_master_nodes=es1,es2,es3
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - ./data/es/2:/usr/share/elasticsearch/data
+    networks: [infra]
+
+  es3:
+    image: docker.io/library/elasticsearch:9.3.3
+    container_name: es3
+    environment:
+      - node.name=es3
+      - cluster.name=es-cluster
+      - discovery.seed_hosts=es1,es2
+      - cluster.initial_master_nodes=es1,es2,es3
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - ./data/es/3:/usr/share/elasticsearch/data
+    networks: [infra]
+
+
+  # =======================
+  # Redis 哨兵集群（1主2从 + 3哨兵）
+  # =======================
+  redis-master:
+    image: docker.io/library/redis:8.0.3
+    container_name: redis-master
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis/master:/data
+    networks:
+      infra:
+        ipv4_address: 10.89.0.40
+
+  redis-slave1:
+    image: docker.io/library/redis:8.0.3
+    container_name: redis-slave1
+    command: redis-server --appendonly yes --replicaof redis-master 6379
+    depends_on:
+      - redis-master
+    volumes:
+      - ./data/redis/slave1:/data
+    networks:
+      infra:
+        ipv4_address: 10.89.0.41
+
+  redis-slave2:
+    image: docker.io/library/redis:8.0.3
+    container_name: redis-slave2
+    command: redis-server --appendonly yes --replicaof redis-master 6379
+    depends_on:
+      - redis-master
+    volumes:
+      - ./data/redis/slave2:/data
+    networks:
+      infra:
+        ipv4_address: 10.89.0.42
+
+  redis-sentinel1:
+    image: docker.io/library/redis:8.0.3
+    container_name: redis-sentinel1
+    depends_on:
+      - redis-master
+      - redis-slave1
+      - redis-slave2
+    volumes:
+      - ./redis/sentinel1.conf:/etc/redis/sentinel.conf:Z
+    command: redis-sentinel /etc/redis/sentinel.conf
+    ports:
+      - "26379:26379"
+    networks: [infra]
+
+  redis-sentinel2:
+    image: docker.io/library/redis:8.0.3
+    container_name: redis-sentinel2
+    depends_on:
+      - redis-master
+      - redis-slave1
+      - redis-slave2
+    volumes:
+      - ./redis/sentinel2.conf:/etc/redis/sentinel.conf:Z
+    command: redis-sentinel /etc/redis/sentinel.conf
+    ports:
+      - "26380:26379"
+    networks: [infra]
+
+  redis-sentinel3:
+    image: docker.io/library/redis:8.0.3
+    container_name: redis-sentinel3
+    depends_on:
+      - redis-master
+      - redis-slave1
+      - redis-slave2
+    volumes:
+      - ./redis/sentinel3.conf:/etc/redis/sentinel.conf:Z
+    command: redis-sentinel /etc/redis/sentinel.conf
+    ports:
+      - "26381:26379"
+    networks: [infra]
+
+  # =======================
+  # MySQL 双主双从集群 + ProxySQL
+  # =======================
+  mysql-master1:
+    image: docker.io/library/mysql:9.6.0
+    container_name: mysql-master1
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: dev
+    volumes:
+      - ./data/mysql/master1:/var/lib/mysql
+      - ./mysql/master1.cnf:/etc/mysql/conf.d/master.cnf:ro
+      - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
+    networks: [infra]
+
+  mysql-master2:
+    image: docker.io/library/mysql:9.6.0
+    container_name: mysql-master2
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: dev
+    volumes:
+      - ./data/mysql/master2:/var/lib/mysql
+      - ./mysql/master2.cnf:/etc/mysql/conf.d/master.cnf:ro
+      - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
+    networks: [infra]
+
+  mysql-slave1:
+    image: docker.io/library/mysql:9.6.0
+    container_name: mysql-slave1
+    depends_on:
+      - mysql-master1
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: dev
+    volumes:
+      - ./data/mysql/slave1:/var/lib/mysql
+      - ./mysql/slave1.cnf:/etc/mysql/conf.d/slave.cnf:ro
+      - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
+    networks: [infra]
+
+  mysql-slave2:
+    image: docker.io/library/mysql:9.6.0
+    container_name: mysql-slave2
+    depends_on:
+      - mysql-master2
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: dev
+    volumes:
+      - ./data/mysql/slave2:/var/lib/mysql
+      - ./mysql/slave2.cnf:/etc/mysql/conf.d/slave.cnf:ro
+      - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
+    networks: [infra]
+
+  mysql-init:
+    image: docker.io/library/mysql:9.6.0
+    container_name: mysql-init
+    depends_on:
+      - mysql-master1
+      - mysql-master2
+      - mysql-slave1
+      - mysql-slave2
+    volumes:
+      - ./mysql/setup-replication.sh:/setup-replication.sh:ro
+    entrypoint: ["bash", "/setup-replication.sh"]
+    restart: "no"
+    networks: [infra]
+
+  proxysql:
+    image: docker.io/proxysql/proxysql:3.0.7
+    container_name: proxysql
+    depends_on:
+      - mysql-master1
+      - mysql-master2
+      - mysql-slave1
+      - mysql-slave2
+    volumes:
+      - ./mysql/proxysql.cnf:/etc/proxysql.cnf:ro
+    ports:
+      - "6033:6033"
+      - "6032:6032"
+    networks: [infra]
+
+  # =======================
+  # Bytebase（数据库 DevOps 平台）
+  # =======================
+  bytebase:
+    image: docker.io/bytebase/bytebase:3.17.1
+    container_name: bytebase
+    depends_on:
+      - mysql-master1
+      - mysql-master2
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./data/bytebase:/var/opt/bytebase
+    networks: [infra]
+
+  doris-fe:
+    image: docker.io/apache/doris:fe-4.1.0-slim
+    container_name: doris-fe
+    environment:
+      - FE_SERVERS=fe1:10.89.0.30:9010
+      - FE_ID=1
+    ports:
+      - "8030:8030"   # Web UI
+      - "9030:9030"   # MySQL协议
+    volumes:
+      - ./data/doris/fe:/opt/apache-doris/fe/doris-meta
+    networks:
+      infra:
+        ipv4_address: 10.89.0.30
+
+  doris-be1:
+    image: docker.io/apache/doris:be-4.1.0-slim
+    container_name: doris-be1
+    depends_on:
+      - doris-fe
+    environment:
+      - FE_SERVERS=fe1:10.89.0.30:9010
+      - BE_ADDR=10.89.0.31:9050
+    volumes:
+      - ./data/doris/be1:/opt/apache-doris/be/storage
+    networks:
+      infra:
+        ipv4_address: 10.89.0.31
+
+  doris-be2:
+    image: docker.io/apache/doris:be-4.1.0-slim
+    container_name: doris-be2
+    depends_on:
+      - doris-fe
+    environment:
+      - FE_SERVERS=fe1:10.89.0.30:9010
+      - BE_ADDR=10.89.0.32:9050
+    volumes:
+      - ./data/doris/be2:/opt/apache-doris/be/storage
+    networks:
+      infra:
+        ipv4_address: 10.89.0.32
+
+  # =======================
+  # Homer（服务导航面板）
+  # =======================
+  homer:
+    image: docker.io/b4bz/homer:v26.4.2
+    container_name: homer
+    volumes:
+      - ./homer/config.yml:/www/assets/config.yml:ro
+    ports:
+      - "8888:8080"
+    networks: [infra]
+
+  # =======================
+  # DTM 分布式事务管理器（SAGA / TCC / XA / 2PC / MSG）
+  # HTTP API: 36789  |  gRPC: 36790
+  # =======================
+  dtm:
+    image: docker.io/yedf/dtm:1.19.0
+    container_name: dtm
+    environment:
+      STORE_DRIVER: boltdb
+      HTTP_PORT: 36789
+      GRPC_PORT: 36790
+      LOG_LEVEL: info
+    ports:
+      - "36789:36789"
+      - "36790:36790"
+    networks: [infra]
+    restart: unless-stopped

@@ -1,0 +1,20 @@
+# container runtime data — re-created from compose.yml on first start
+data/
+
+# OMC / Claude local state
+.omc/
+.claude/
+
+# logs
+logs/
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# editor
+.idea/
+.vscode/
+*.swp
+*.swo
