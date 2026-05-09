@@ -514,6 +514,7 @@ services:
   mysql-master1:
     image: docker.io/library/mysql:9.6.0
     container_name: mysql-master1
+    user: "999:999"
     environment:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: dev
@@ -522,10 +523,12 @@ services:
       - ./mysql/master1.cnf:/etc/mysql/conf.d/master.cnf:ro
       - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
     networks: [infra]
+    restart: unless-stopped
 
   mysql-master2:
     image: docker.io/library/mysql:9.6.0
     container_name: mysql-master2
+    user: "999:999"
     environment:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: dev
@@ -534,10 +537,12 @@ services:
       - ./mysql/master2.cnf:/etc/mysql/conf.d/master.cnf:ro
       - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
     networks: [infra]
+    restart: unless-stopped
 
   mysql-slave1:
     image: docker.io/library/mysql:9.6.0
     container_name: mysql-slave1
+    user: "999:999"
     depends_on:
       - mysql-master1
     environment:
@@ -548,10 +553,12 @@ services:
       - ./mysql/slave1.cnf:/etc/mysql/conf.d/slave.cnf:ro
       - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
     networks: [infra]
+    restart: unless-stopped
 
   mysql-slave2:
     image: docker.io/library/mysql:9.6.0
     container_name: mysql-slave2
+    user: "999:999"
     depends_on:
       - mysql-master2
     environment:
@@ -562,6 +569,7 @@ services:
       - ./mysql/slave2.cnf:/etc/mysql/conf.d/slave.cnf:ro
       - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
     networks: [infra]
+    restart: unless-stopped
 
   mysql-init:
     image: docker.io/library/mysql:9.6.0
@@ -591,6 +599,7 @@ services:
       - "6033:6033"
       - "6032:6032"
     networks: [infra]
+    restart: unless-stopped
 
   # =======================
   # Bytebase（数据库 DevOps 平台）

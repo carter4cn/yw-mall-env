@@ -33,11 +33,11 @@ mysql_variables=
     connect_retries_on_failure=10
 }
 
-# 写组=10，读组=20
+# 写组=10：仅 master1（防止双主写入冲突）
+# 读组=20：master1 + master2 + slave1 + slave2
 mysql_servers =
 (
     { address="mysql-master1", port=3306, hostgroup=10, max_connections=100, weight=1000 },
-    { address="mysql-master2", port=3306, hostgroup=10, max_connections=100, weight=1000 },
     { address="mysql-master1", port=3306, hostgroup=20, max_connections=100, weight=500 },
     { address="mysql-master2", port=3306, hostgroup=20, max_connections=100, weight=500 },
     { address="mysql-slave1",  port=3306, hostgroup=20, max_connections=100, weight=1000 },
