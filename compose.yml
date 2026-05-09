@@ -221,10 +221,13 @@ services:
       - clusterName=pulsar-cluster
       - zkServers=pulsar-zk:2181
       - httpServerEnabled=true
-      - statsProviderClass=org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+      - advertisedAddress=10.89.0.50
     volumes:
       - ./data/pulsar/bk1:/pulsar/data/bookkeeper
-    networks: [infra]
+    networks:
+      infra:
+        ipv4_address: 10.89.0.50
+    restart: unless-stopped
 
   pulsar-bookie2:
     image: docker.io/apachepulsar/pulsar:4.2.0
@@ -238,10 +241,13 @@ services:
       - clusterName=pulsar-cluster
       - zkServers=pulsar-zk:2181
       - httpServerEnabled=true
-      - statsProviderClass=org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+      - advertisedAddress=10.89.0.51
     volumes:
       - ./data/pulsar/bk2:/pulsar/data/bookkeeper
-    networks: [infra]
+    networks:
+      infra:
+        ipv4_address: 10.89.0.51
+    restart: unless-stopped
 
   pulsar-bookie3:
     image: docker.io/apachepulsar/pulsar:4.2.0
@@ -255,10 +261,13 @@ services:
       - clusterName=pulsar-cluster
       - zkServers=pulsar-zk:2181
       - httpServerEnabled=true
-      - statsProviderClass=org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+      - advertisedAddress=10.89.0.52
     volumes:
       - ./data/pulsar/bk3:/pulsar/data/bookkeeper
-    networks: [infra]
+    networks:
+      infra:
+        ipv4_address: 10.89.0.52
+    restart: unless-stopped
 
   pulsar-broker1:
     image: docker.io/apachepulsar/pulsar:4.2.0
@@ -425,7 +434,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - ./data/redis/master:/data
+      - ./data/redis2/master:/data
     networks:
       infra:
         ipv4_address: 10.89.0.40
@@ -437,7 +446,7 @@ services:
     depends_on:
       - redis-master
     volumes:
-      - ./data/redis/slave1:/data
+      - ./data/redis2/slave1:/data
     networks:
       infra:
         ipv4_address: 10.89.0.41
@@ -449,7 +458,7 @@ services:
     depends_on:
       - redis-master
     volumes:
-      - ./data/redis/slave2:/data
+      - ./data/redis2/slave2:/data
     networks:
       infra:
         ipv4_address: 10.89.0.42
@@ -462,11 +471,12 @@ services:
       - redis-slave1
       - redis-slave2
     volumes:
-      - ./redis/sentinel1.conf:/etc/redis/sentinel.conf:Z
+      - ./data/redis2/sentinel1.conf:/etc/redis/sentinel.conf
     command: redis-sentinel /etc/redis/sentinel.conf
     ports:
       - "26379:26379"
     networks: [infra]
+    restart: unless-stopped
 
   redis-sentinel2:
     image: docker.io/library/redis:8.0.3
@@ -476,11 +486,12 @@ services:
       - redis-slave1
       - redis-slave2
     volumes:
-      - ./redis/sentinel2.conf:/etc/redis/sentinel.conf:Z
+      - ./data/redis2/sentinel2.conf:/etc/redis/sentinel.conf
     command: redis-sentinel /etc/redis/sentinel.conf
     ports:
       - "26380:26379"
     networks: [infra]
+    restart: unless-stopped
 
   redis-sentinel3:
     image: docker.io/library/redis:8.0.3
@@ -490,11 +501,12 @@ services:
       - redis-slave1
       - redis-slave2
     volumes:
-      - ./redis/sentinel3.conf:/etc/redis/sentinel.conf:Z
+      - ./data/redis2/sentinel3.conf:/etc/redis/sentinel.conf
     command: redis-sentinel /etc/redis/sentinel.conf
     ports:
       - "26381:26379"
     networks: [infra]
+    restart: unless-stopped
 
   # =======================
   # MySQL 双主双从集群 + ProxySQL
@@ -506,7 +518,7 @@ services:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: dev
     volumes:
-      - ./data/mysql/master1:/var/lib/mysql
+      - ./data/mysql2/master1:/var/lib/mysql
       - ./mysql/master1.cnf:/etc/mysql/conf.d/master.cnf:ro
       - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
     networks: [infra]
@@ -518,7 +530,7 @@ services:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: dev
     volumes:
-      - ./data/mysql/master2:/var/lib/mysql
+      - ./data/mysql2/master2:/var/lib/mysql
       - ./mysql/master2.cnf:/etc/mysql/conf.d/master.cnf:ro
       - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
     networks: [infra]
@@ -532,7 +544,7 @@ services:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: dev
     volumes:
-      - ./data/mysql/slave1:/var/lib/mysql
+      - ./data/mysql2/slave1:/var/lib/mysql
       - ./mysql/slave1.cnf:/etc/mysql/conf.d/slave.cnf:ro
       - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
     networks: [infra]
@@ -546,7 +558,7 @@ services:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: dev
     volumes:
-      - ./data/mysql/slave2:/var/lib/mysql
+      - ./data/mysql2/slave2:/var/lib/mysql
       - ./mysql/slave2.cnf:/etc/mysql/conf.d/slave.cnf:ro
       - ./mysql/init-repl.sql:/docker-entrypoint-initdb.d/init-repl.sql:ro
     networks: [infra]
@@ -623,6 +635,7 @@ services:
     networks:
       infra:
         ipv4_address: 10.89.0.31
+    restart: unless-stopped
 
   doris-be2:
     image: docker.io/apache/doris:be-4.1.0-slim
@@ -637,6 +650,7 @@ services:
     networks:
       infra:
         ipv4_address: 10.89.0.32
+    restart: unless-stopped
 
   # =======================
   # Homer（服务导航面板）
