@@ -60,10 +60,17 @@ mysql_query_rules =
         apply=1
     },
     {
+        # Option A from architecture/read-write-split-option-c-gtid.md:
+        # route ALL SELECTs to the master hostgroup (10) until we implement
+        # GTID-based causal reads. Reasoning: at MVP QPS (<10/s) master is
+        # idle, and stale slave reads cause noisy "no rows" / "not found"
+        # bugs after every write (cart, order, payment).
+        # Slaves (hg=20) remain available for failover and for explicit
+        # routing of read-heavy non-critical queries in a future ruleset.
         rule_id=2
         active=1
         match_digest="^SELECT"
-        destination_hostgroup=20
+        destination_hostgroup=10
         apply=1
     }
 )
