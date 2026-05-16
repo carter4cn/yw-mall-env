@@ -603,9 +603,7 @@ services:
     container_name: proxysql
     depends_on:
       - mysql-master1
-      - mysql-master2
       - mysql-slave1
-      - mysql-slave2
     volumes:
       - ./mysql/proxysql.cnf:/etc/proxysql.cnf:ro
     ports:
