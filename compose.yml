@@ -157,8 +157,6 @@ services:
     profiles: ["mq-extras"]
     depends_on:
       - kafka1
-      - kafka2
-      - kafka3
     command:
       - --kafka.server=kafka1:9092
       - --kafka.server=kafka2:9092
@@ -178,8 +176,6 @@ services:
     profiles: ["mq-extras"]
     depends_on:
       - kafka1
-      - kafka2
-      - kafka3
     environment:
       - KAFKA_CLUSTERS_0_NAME=local
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka1:9092,kafka2:9092,kafka3:9092
@@ -595,9 +591,7 @@ services:
     container_name: mysql-init
     depends_on:
       - mysql-master1
-      - mysql-master2
       - mysql-slave1
-      - mysql-slave2
     volumes:
       - ./mysql/setup-replication.sh:/setup-replication.sh:ro
     entrypoint: ["bash", "/setup-replication.sh"]
@@ -629,7 +623,6 @@ services:
     profiles: ["db-tools"]
     depends_on:
       - mysql-master1
-      - mysql-master2
     ports:
       - "8090:8080"
     volumes:
@@ -724,7 +717,7 @@ services:
     container_name: pg1
     hostname: pg1
     profiles: ["pg"]
-    depends_on: [etcd1, etcd2, etcd3, minio]
+    depends_on: [etcd1, minio]
     environment:
       SCOPE: mall-pg
       PGVERSION: "17"
@@ -800,7 +793,7 @@ services:
     container_name: pg2
     hostname: pg2
     profiles: ["pg-ha"]
-    depends_on: [etcd1, etcd2, etcd3, minio, pg1]
+    depends_on: [etcd1, minio, pg1]
     environment:
       SCOPE: mall-pg
       PGVERSION: "17"
@@ -837,7 +830,7 @@ services:
     container_name: pg3
     hostname: pg3
     profiles: ["pg-ha"]
-    depends_on: [etcd1, etcd2, etcd3, minio, pg1]
+    depends_on: [etcd1, minio, pg1]
     environment:
       SCOPE: mall-pg
       PGVERSION: "17"
@@ -874,7 +867,7 @@ services:
     image: docker.io/library/haproxy:3.0-alpine
     container_name: pg-haproxy1
     profiles: ["pg"]
-    depends_on: [pg1, pg2, pg3]
+    depends_on: [pg1]
     volumes:
       - ./postgres/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:
@@ -895,7 +888,7 @@ services:
     image: docker.io/library/haproxy:3.0-alpine
     container_name: pg-haproxy2
     profiles: ["pg-ha"]
-    depends_on: [pg1, pg2, pg3]
+    depends_on: [pg1]
     volumes:
       - ./postgres/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:
@@ -1081,7 +1074,7 @@ services:
     image: docker.io/library/mongo:8.0
     container_name: mongo-init
     profiles: ["mongo"]
-    depends_on: [mongo1, mongo2, mongo3]
+    depends_on: [mongo1]
     volumes:
       - ./mongodb/init-replset.js:/init/init-replset.js:ro
     entrypoint:
