@@ -69,6 +69,7 @@ services:
   etcdkeeper:
     image: docker.io/evildecay/etcdkeeper:v0.7.6
     container_name: etcdkeeper
+    profiles: ["mq-extras"]
     depends_on:
       - etcd1
     environment:
@@ -149,6 +150,7 @@ services:
   kafka-exporter:
     image: docker.io/danielqsj/kafka-exporter:latest
     container_name: kafka-exporter
+    profiles: ["mq-extras"]
     depends_on:
       - kafka1
       - kafka2
@@ -169,6 +171,7 @@ services:
   kafka-ui:
     image: docker.io/provectuslabs/kafka-ui:v0.7.2
     container_name: kafka-ui
+    profiles: ["mq-extras"]
     depends_on:
       - kafka1
       - kafka2
@@ -187,6 +190,7 @@ services:
   pulsar-zk:
     image: docker.io/apachepulsar/pulsar:4.2.0
     container_name: pulsar-zk
+    profiles: ["pulsar"]
     command: >
       bash -c "bin/apply-config-from-env.py conf/zookeeper.conf && bin/pulsar zookeeper"
     environment:
@@ -198,6 +202,7 @@ services:
   pulsar-init:
     image: docker.io/apachepulsar/pulsar:4.2.0
     container_name: pulsar-init
+    profiles: ["pulsar"]
     depends_on:
       - pulsar-zk
     command: >
@@ -212,6 +217,7 @@ services:
   pulsar-bookie1:
     image: docker.io/apachepulsar/pulsar:4.2.0
     container_name: pulsar-bookie1
+    profiles: ["pulsar"]
     depends_on:
       - pulsar-init
     command: >
@@ -232,6 +238,7 @@ services:
   pulsar-bookie2:
     image: docker.io/apachepulsar/pulsar:4.2.0
     container_name: pulsar-bookie2
+    profiles: ["pulsar"]
     depends_on:
       - pulsar-init
     command: >
@@ -252,6 +259,7 @@ services:
   pulsar-bookie3:
     image: docker.io/apachepulsar/pulsar:4.2.0
     container_name: pulsar-bookie3
+    profiles: ["pulsar"]
     depends_on:
       - pulsar-init
     command: >
@@ -272,6 +280,7 @@ services:
   pulsar-broker1:
     image: docker.io/apachepulsar/pulsar:4.2.0
     container_name: pulsar-broker1
+    profiles: ["pulsar"]
     depends_on:
       - pulsar-bookie1
       - pulsar-bookie2
@@ -294,6 +303,7 @@ services:
   pulsar-broker2:
     image: docker.io/apachepulsar/pulsar:4.2.0
     container_name: pulsar-broker2
+    profiles: ["pulsar"]
     depends_on:
       - pulsar-bookie1
       - pulsar-bookie2
@@ -319,6 +329,7 @@ services:
   pulsar-manager:
     image: docker.io/apachepulsar/pulsar-manager:v0.4.0
     container_name: pulsar-manager
+    profiles: ["pulsar"]
     depends_on:
       - pulsar-broker1
     environment:
@@ -364,7 +375,6 @@ services:
     image: docker.io/grafana/grafana:13.0.1
     container_name: grafana
     depends_on:
-      - es1
       - prometheus
     environment:
       - GF_SECURITY_ADMIN_USER=admin
@@ -382,6 +392,7 @@ services:
   es1:
     image: docker.io/library/elasticsearch:9.3.3
     container_name: es1
+    profiles: ["search"]
     environment:
       - node.name=es1
       - cluster.name=es-cluster
@@ -398,6 +409,7 @@ services:
   es2:
     image: docker.io/library/elasticsearch:9.3.3
     container_name: es2
+    profiles: ["search"]
     environment:
       - node.name=es2
       - cluster.name=es-cluster
@@ -412,6 +424,7 @@ services:
   es3:
     image: docker.io/library/elasticsearch:9.3.3
     container_name: es3
+    profiles: ["search"]
     environment:
       - node.name=es3
       - cluster.name=es-cluster
@@ -607,6 +620,7 @@ services:
   bytebase:
     image: docker.io/bytebase/bytebase:3.17.1
     container_name: bytebase
+    profiles: ["db-tools"]
     depends_on:
       - mysql-master1
       - mysql-master2
@@ -619,6 +633,7 @@ services:
   doris-fe:
     image: docker.io/apache/doris:fe-4.1.0-slim
     container_name: doris-fe
+    profiles: ["olap"]
     environment:
       - FE_SERVERS=fe1:10.89.0.30:9010
       - FE_ID=1
@@ -634,6 +649,7 @@ services:
   doris-be1:
     image: docker.io/apache/doris:be-4.1.0-slim
     container_name: doris-be1
+    profiles: ["olap"]
     depends_on:
       - doris-fe
     environment:
@@ -649,6 +665,7 @@ services:
   doris-be2:
     image: docker.io/apache/doris:be-4.1.0-slim
     container_name: doris-be2
+    profiles: ["olap"]
     depends_on:
       - doris-fe
     environment:
@@ -700,6 +717,7 @@ services:
     image: ghcr.io/zalando/spilo-17:4.0-p2
     container_name: pg1
     hostname: pg1
+    profiles: ["pg"]
     depends_on: [etcd1, etcd2, etcd3, minio]
     environment:
       SCOPE: mall-pg
@@ -775,6 +793,7 @@ services:
     image: ghcr.io/zalando/spilo-17:4.0-p2
     container_name: pg2
     hostname: pg2
+    profiles: ["pg"]
     depends_on: [etcd1, etcd2, etcd3, minio, pg1]
     environment:
       SCOPE: mall-pg
@@ -811,6 +830,7 @@ services:
     image: ghcr.io/zalando/spilo-17:4.0-p2
     container_name: pg3
     hostname: pg3
+    profiles: ["pg"]
     depends_on: [etcd1, etcd2, etcd3, minio, pg1]
     environment:
       SCOPE: mall-pg
@@ -847,6 +867,7 @@ services:
   pg-haproxy1:
     image: docker.io/library/haproxy:3.0-alpine
     container_name: pg-haproxy1
+    profiles: ["pg"]
     depends_on: [pg1, pg2, pg3]
     volumes:
       - ./postgres/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
@@ -867,6 +888,7 @@ services:
   pg-haproxy2:
     image: docker.io/library/haproxy:3.0-alpine
     container_name: pg-haproxy2
+    profiles: ["pg"]
     depends_on: [pg1, pg2, pg3]
     volumes:
       - ./postgres/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
@@ -885,6 +907,7 @@ services:
   pgbouncer:
     image: docker.io/edoburu/pgbouncer:1.23.1
     container_name: pgbouncer
+    profiles: ["pg"]
     depends_on: [pg-haproxy1]
     user: "0:0"
     volumes:
@@ -906,6 +929,7 @@ services:
   pg-init:
     image: docker.io/bitnami/postgresql:17
     container_name: pg-init
+    profiles: ["pg"]
     depends_on: [pgbouncer]
     environment:
       PGHOST: pgbouncer
@@ -927,6 +951,7 @@ services:
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
     container_name: postgres-exporter
+    profiles: ["pg"]
     depends_on: [pg-haproxy1, pg-init]
     environment:
       DATA_SOURCE_NAME: "postgresql://exporter:exporter123@pg-haproxy1:5000/postgres?sslmode=disable"
@@ -950,6 +975,7 @@ services:
     image: docker.io/library/mongo:8.0
     container_name: mongo1
     hostname: mongo1
+    profiles: ["mongo"]
     command:
       - bash
       - -c
@@ -982,6 +1008,7 @@ services:
     image: docker.io/library/mongo:8.0
     container_name: mongo2
     hostname: mongo2
+    profiles: ["mongo"]
     command:
       - bash
       - -c
@@ -1014,6 +1041,7 @@ services:
     image: docker.io/library/mongo:8.0
     container_name: mongo3
     hostname: mongo3
+    profiles: ["mongo"]
     command:
       - bash
       - -c
@@ -1046,6 +1074,7 @@ services:
   mongo-init:
     image: docker.io/library/mongo:8.0
     container_name: mongo-init
+    profiles: ["mongo"]
     depends_on: [mongo1, mongo2, mongo3]
     volumes:
       - ./mongodb/init-replset.js:/init/init-replset.js:ro
@@ -1079,6 +1108,7 @@ services:
   pbm-agent1:
     image: docker.io/percona/percona-backup-mongodb:2.5.0
     container_name: pbm-agent1
+    profiles: ["mongo"]
     depends_on: [mongo-init]
     environment:
       PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo1:27017/?authSource=admin"
@@ -1096,6 +1126,7 @@ services:
   pbm-agent2:
     image: docker.io/percona/percona-backup-mongodb:2.5.0
     container_name: pbm-agent2
+    profiles: ["mongo"]
     depends_on: [mongo-init]
     environment:
       PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo2:27017/?authSource=admin"
@@ -1113,6 +1144,7 @@ services:
   pbm-agent3:
     image: docker.io/percona/percona-backup-mongodb:2.5.0
     container_name: pbm-agent3
+    profiles: ["mongo"]
     depends_on: [mongo-init]
     environment:
       PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo3:27017/?authSource=admin"
@@ -1130,6 +1162,7 @@ services:
   mongo-express:
     image: docker.io/library/mongo-express:1.0.2-20-alpine3.19
     container_name: mongo-express
+    profiles: ["mongo"]
     depends_on: [mongo-init]
     environment:
       ME_CONFIG_MONGODB_URL: "mongodb://root:root123@mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0&authSource=admin"
@@ -1152,6 +1185,7 @@ services:
   mongodb-exporter:
     image: docker.io/percona/mongodb_exporter:0.43
     container_name: mongodb-exporter
+    profiles: ["mongo"]
     depends_on: [mongo-init]
     command:
       - "--mongodb.uri=mongodb://exporter:exporter123@mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0&authSource=admin"

@@ -60,6 +60,45 @@ podman compose -f compose.yml up -d
 
 > 在 yw-mall 下用 `./start.sh` 也会自动检查并拉起本仓库的基础设施。
 
+## Compose Profiles（按需启停）
+
+env 默认只起 **yw-mall 必备的 baseline**（约 23 个容器：etcd / kafka / mysql / redis / minio / prometheus / grafana / homer / dtm）。其余按 `profiles:` 分组，opt-in 拉起：
+
+| Profile | 包含 | 大约峰值内存 |
+|---|---|---|
+| _baseline_ | etcd×3、kafka×3、mysql×5、redis×6、minio、prometheus、grafana、homer、dtm | ~6 GB |
+| `mq-extras` | kafka-exporter、kafka-ui、etcdkeeper | ~400 MB |
+| `pulsar` | pulsar-zk + bookie×3 + broker×2 + manager + init | ~2 GB |
+| `search` | es1/2/3 | ~1.6 GB |
+| `olap` | doris-fe + be1/2 | ~1.3 GB |
+| `db-tools` | bytebase | ~300 MB |
+| `pg` | pg1/2/3、pg-haproxy1/2、pgbouncer、pg-init、postgres-exporter | ~2 GB |
+| `mongo` | mongo1/2/3、mongo-init、pbm-agent×3、mongo-express、mongodb-exporter | ~4 GB |
+
+**用法：**
+
+```bash
+# 只起 baseline
+podman compose up -d
+
+# baseline + PG
+podman compose --profile pg up -d
+
+# baseline + PG + Mongo + Bytebase
+podman compose --profile pg --profile mongo --profile db-tools up -d
+
+# 也可以用环境变量
+COMPOSE_PROFILES=pg,mongo,search podman compose up -d
+
+# 停掉某个 profile（不删 volume）
+podman compose --profile pulsar stop
+
+# 全部起（包括所有 profile）— 需要 ≥24 GB 可用内存
+COMPOSE_PROFILES=mq-extras,pulsar,search,olap,db-tools,pg,mongo podman compose up -d
+```
+
+### PostgreSQL / MongoDB 首次启动
+
 ### PostgreSQL / MongoDB 首次启动
 
 PG / Mongo 集群需要一次性 bootstrap，按下面顺序执行（已有集群可跳过 `mk-pki.sh` 和 bucket 初始化）：
@@ -68,27 +107,18 @@ PG / Mongo 集群需要一次性 bootstrap，按下面顺序执行（已有集�
 # 1) 生成 Mongo keyFile（已存在则跳过）
 ./pki/mk-pki.sh
 
-# 2) 先把 DCS 和对象存储拉起来
-podman compose up -d etcd1 etcd2 etcd3 minio
+# 2) baseline + 准备工作（etcd / minio 已经包含在 baseline 里）
+podman compose up -d
 
 # 3) 创建备份桶
 ./pki/init-minio-buckets.sh
 
-# 4) PG 集群 + 路由层 + 用户初始化
-podman compose up -d pg1 pg2 pg3
-podman compose up -d pg-haproxy1 pg-haproxy2 pgbouncer
-podman compose up pg-init             # 一次性，自动退出
+# 4) 拉起 PG profile（一次性 pg-init 会自动退出）
+podman compose --profile pg up -d
 
-# 5) Mongo RS + 用户初始化
-podman compose up -d mongo1 mongo2 mongo3
-podman compose up mongo-init          # 一次性，自动退出
-
-# 6) PBM agent + 推送配置（首次需要）
-podman compose up -d pbm-agent1 pbm-agent2 pbm-agent3
-podman exec pbm-agent1 pbm config --file=/etc/pbm/pbm-config.yaml
-
-# 7) 拉起剩余服务
-podman compose up -d
+# 5) 拉起 Mongo profile（mongo-init 一次性容器自动退出）
+podman compose --profile mongo up -d
+podman exec pbm-agent1 pbm config --file=/etc/pbm/pbm-config.yaml   # 首次推送 PBM 配置
 ```
 
 > 详细架构与决策见 [`docs/specs/2026-05-16-postgres-mongo-prod-design.md`](./docs/specs/2026-05-16-postgres-mongo-prod-design.md)。
