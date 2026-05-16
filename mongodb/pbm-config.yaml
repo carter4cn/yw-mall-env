@@ -1,0 +1,27 @@
+# Percona Backup for MongoDB
+# 部署后用 pbm config --file=/etc/pbm/pbm-config.yaml 推送一次即可
+
+storage:
+  type: s3
+  s3:
+    endpointUrl: http://minio:9000
+    bucket: pbm
+    region: us-east-1
+    prefix: mall
+    credentials:
+      access-key-id: admin
+      secret-access-key: admin123
+    insecureSkipTLSVerify: true
+    forcePathStyle: true
+
+pitr:
+  enabled: true
+  oplogSpanMin: 10
+  compression: s2
+
+backup:
+  compression: s2
+
+restore:
+  batchSize: 500
+  numInsertionWorkers: 10

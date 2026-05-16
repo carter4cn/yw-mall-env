@@ -1,0 +1,48 @@
+# 参考文档 — SPILO_CONFIGURATION 实际在 compose.yml 里以多行字符串注入到环境变量。
+# 这份 yaml 与 compose 中的值保持一致，便于 review。如需修改：同步两边。
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    synchronous_mode: true
+    synchronous_mode_strict: false
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        max_connections: 200
+        shared_buffers: 256MB
+        effective_cache_size: 1GB
+        work_mem: 8MB
+        maintenance_work_mem: 64MB
+        wal_level: replica
+        wal_log_hints: on
+        max_wal_senders: 10
+        max_replication_slots: 10
+        hot_standby: on
+        archive_mode: on
+        archive_timeout: 60s
+        ssl: on
+        password_encryption: scram-sha-256
+        track_io_timing: on
+        log_min_duration_statement: 1000
+        log_lock_waits: on
+        log_temp_files: 0
+        log_checkpoints: on
+        log_autovacuum_min_duration: 0
+  initdb:
+    - encoding: UTF8
+    - locale: en_US.UTF-8
+    - data-checksums
+
+  pg_hba:
+    - local   all             postgres                                trust
+    - host    all             all                127.0.0.1/32         scram-sha-256
+    - host    all             all                ::1/128              scram-sha-256
+    - hostssl replication     standby            all                  scram-sha-256
+    - host    replication     standby            all                  scram-sha-256
+    - host    all             all                10.89.0.0/24         scram-sha-256
+    - hostssl all             all                0.0.0.0/0            scram-sha-256
+    - host    all             all                0.0.0.0/0            scram-sha-256

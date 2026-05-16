@@ -60,6 +60,89 @@ User: root  Password: root123  Database: dev
 | monitor | monitor123 | ProxySQL monitor |
 | proxysql | proxysql123 | Application access |
 
+### PostgreSQL HA (Patroni + etcd + HAProxy + PgBouncer)
+
+| Component | Version | Role | Port (Host) | IP |
+|-----------|---------|------|-------------|----|
+| pg1 | Spilo 17 (4.0-p2) | Patroni candidate primary | internal | 10.89.0.60 |
+| pg2 | Spilo 17 (4.0-p2) | Patroni standby | internal | 10.89.0.61 |
+| pg3 | Spilo 17 (4.0-p2) | Patroni standby | internal | 10.89.0.62 |
+| pg-haproxy1 | haproxy:3.0-alpine | R/W router (active) | **5433** (write) / **5434** (read) / **8008** (stats+metrics) | 10.89.0.63 |
+| pg-haproxy2 | haproxy:3.0-alpine | R/W router (HA replica) | **8009** (stats+metrics) | 10.89.0.64 |
+| pgbouncer | edoburu/pgbouncer:1.23.1 | Transaction pooler | **5432** | 10.89.0.65 |
+| pg-init | bitnami/postgresql:17 | One-shot bootstrap | — | — |
+| postgres-exporter | postgres_exporter:0.16.0 | Prometheus metrics | **9187** | 10.89.0.66 |
+
+**Application connection (via PgBouncer):**
+```
+psql "host=localhost port=5432 user=app_rw password=apprw123 dbname=mall"
+```
+
+**Direct primary (运维 / 迁移):**
+```
+psql -h localhost -p 5433 -U postgres -d postgres   # password postgres123
+```
+
+**Read-only fan-out:**
+```
+psql -h localhost -p 5434 -U app_ro -d mall   # password appro123
+```
+
+**Patroni cluster status:**
+```
+podman exec pg1 patronictl list
+```
+
+**Users (dev placeholder):**
+| User | Password | Purpose |
+|------|----------|---------|
+| postgres | postgres123 | Superuser |
+| standby | replicator123 | Streaming replication |
+| admin | admin123 | DBA |
+| app_rw | apprw123 | Application read-write |
+| app_ro | appro123 | Application read-only |
+| pgbouncer | pgbouncer123 | PgBouncer auth_user |
+| backup | backup123 | wal-g backups |
+| exporter | exporter123 | postgres-exporter |
+| bytebase | bytebase123 | Bytebase access |
+
+### MongoDB ReplicaSet (PSS + PBM)
+
+| Component | Version | Role | Port (Host) | IP |
+|-----------|---------|------|-------------|----|
+| mongo1 | 8.0 | RS primary candidate (priority=2) | **27017** | 10.89.0.70 |
+| mongo2 | 8.0 | RS secondary | **27018** | 10.89.0.71 |
+| mongo3 | 8.0 | RS secondary | **27019** | 10.89.0.72 |
+| mongo-init | 8.0 | One-shot rs.initiate + users | — | — |
+| pbm-agent1/2/3 | percona-backup-mongodb:2.5.0 | PBM agents (per-node sidecar) | — | — |
+| mongo-express | 1.0.2 | Web UI | **8091** | 10.89.0.73 |
+| mongodb-exporter | percona/mongodb_exporter:0.43 | Prometheus metrics | **9216** | 10.89.0.74 |
+
+**Application connection (driver-side RS discovery):**
+```
+mongodb://app_rw:apprw123@localhost:27017,localhost:27018,localhost:27019/?replicaSet=rs0&authSource=admin
+```
+
+**RS status:**
+```
+podman exec mongo1 mongosh -u root -p root123 --authenticationDatabase admin --eval "rs.status()"
+```
+
+**Users (dev placeholder):**
+| User | Password | Roles |
+|------|----------|-------|
+| root | root123 | root |
+| app_rw | apprw123 | readWriteAnyDatabase |
+| app_ro | appro123 | readAnyDatabase |
+| backup | backup123 | backup + restore + clusterMonitor |
+| exporter | exporter123 | clusterMonitor + read on local |
+| pbm | pbm123 | PBM agent |
+
+**Management UI:**
+| Service | URL | Username | Password |
+|---------|-----|----------|----------|
+| mongo-express | http://localhost:8091 | admin | admin123 |
+
 ### Doris (OLAP)
 
 | Component | Version | Role | Port (Host) | IP |
@@ -187,23 +270,31 @@ curl http://localhost:8888:9200/_cluster/health?pretty
 | 8888 | Homer (Dashboard) |
 | 2379 | etcd |
 | 3000 | Grafana |
+| 5432 | PgBouncer (PostgreSQL entry) |
+| 5433 | pg-haproxy1 write port (→ primary) |
+| 5434 | pg-haproxy1 read port (→ replicas) |
 | 6032 | ProxySQL Admin |
 | 6033 | ProxySQL (MySQL) |
 | 6379 | Redis |
 | 6650 | Pulsar Broker1 |
 | 6651 | Pulsar Broker2 |
 | 7750 | Pulsar Manager API |
+| 8008 | pg-haproxy1 stats + Prometheus metrics |
+| 8009 | pg-haproxy2 stats + Prometheus metrics |
 | 8030 | Doris FE Web UI |
 | 8080 | Pulsar Broker1 HTTP |
 | 8081 | Pulsar Broker2 HTTP |
 | 8088 | Kafka UI |
 | 8089 | EtcdKeeper |
 | 8090 | Bytebase |
+| 8091 | mongo-express |
 | 9000 | MinIO API |
 | 9001 | MinIO Console |
 | 9030 | Doris MySQL Protocol |
 | 9090 | Prometheus |
+| 9187 | postgres-exporter |
 | 9200 | Elasticsearch |
+| 9216 | mongodb-exporter |
 | 9308 | Kafka Exporter |
 | 9527 | Pulsar Manager UI |
 | 19092 | Kafka Broker1 |
@@ -212,6 +303,9 @@ curl http://localhost:8888:9200/_cluster/health?pretty
 | 26379 | Redis Sentinel1 |
 | 26380 | Redis Sentinel2 |
 | 26381 | Redis Sentinel3 |
+| 27017 | MongoDB rs0 node 1 |
+| 27018 | MongoDB rs0 node 2 |
+| 27019 | MongoDB rs0 node 3 |
 
 ---
 
@@ -228,6 +322,8 @@ data/
   mysql/{master1,master2,slave1,slave2}/
   doris/{fe,be1,be2}/
   bytebase/
+  pg/{1,2,3}/
+  mongo/{1,2,3}/
 ```
 
 ## Quick Commands
@@ -244,4 +340,17 @@ podman logs -f <container_name>
 
 # MySQL replication setup (after fresh start)
 podman compose up mysql-init
+
+# PG / Mongo first-time setup (after fresh start)
+./pki/mk-pki.sh                                     # generate Mongo keyFile
+podman compose up -d etcd1 etcd2 etcd3 minio        # ensure DCS + S3 ready
+./pki/init-minio-buckets.sh                         # create wal-archive + pbm buckets
+podman compose up -d pg1 pg2 pg3                    # Patroni elects leader
+podman compose up -d pg-haproxy1 pg-haproxy2 pgbouncer
+podman compose up pg-init                           # one-shot user/DB bootstrap
+podman compose up -d mongo1 mongo2 mongo3
+podman compose up mongo-init                        # rs.initiate + users
+podman compose up -d pbm-agent1 pbm-agent2 pbm-agent3
+podman exec pbm-agent1 pbm config --file=/etc/pbm/pbm-config.yaml
+podman compose up -d                                # bring everything else up
 ```

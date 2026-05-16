@@ -9,6 +9,11 @@ data/
 logs/
 *.log
 
+# PKI material — generated locally by pki/mk-pki.sh, never committed
+pki/*.key
+pki/*.crt
+pki/*.keyfile
+
 # OS junk
 .DS_Store
 Thumbs.db

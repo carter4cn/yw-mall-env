@@ -690,3 +690,481 @@ services:
       - "36790:36790"
     networks: [infra]
     restart: unless-stopped
+
+  # =======================================================================
+  # PostgreSQL HA：Patroni（Spilo 镜像）+ 现有 etcd + HAProxy + PgBouncer
+  # 备份：wal-g → MinIO（bucket: wal-archive）
+  # 详见 docs/specs/2026-05-16-postgres-mongo-prod-design.md
+  # =======================================================================
+  pg1:
+    image: ghcr.io/zalando/spilo-17:4.0-p2
+    container_name: pg1
+    hostname: pg1
+    depends_on: [etcd1, etcd2, etcd3, minio]
+    environment:
+      SCOPE: mall-pg
+      PGVERSION: "17"
+      ETCD3_HOSTS: "etcd1:2379,etcd2:2379,etcd3:2379"
+      PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
+      PGPASSWORD_SUPERUSER: postgres123
+      PGPASSWORD_REPLICATION: replicator123
+      PGPASSWORD_ADMIN: admin123
+      USE_WALG_BACKUP: "true"
+      USE_WALG_RESTORE: "true"
+      WAL_S3_BUCKET: wal-archive
+      WALE_S3_PREFIX: s3://wal-archive
+      AWS_ENDPOINT: http://minio:9000
+      AWS_S3_FORCE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: admin123
+      WALG_DISABLE_S3_SSE: "true"
+      BACKUP_SCHEDULE: "0 2 * * *"
+      BACKUP_NUM_TO_RETAIN: "7"
+      SPILO_CONFIGURATION: |
+        bootstrap:
+          dcs:
+            ttl: 30
+            loop_wait: 10
+            retry_timeout: 10
+            maximum_lag_on_failover: 1048576
+            synchronous_mode: true
+            synchronous_mode_strict: false
+            postgresql:
+              use_pg_rewind: true
+              use_slots: true
+              parameters:
+                max_connections: 200
+                shared_buffers: 256MB
+                effective_cache_size: 1GB
+                work_mem: 8MB
+                maintenance_work_mem: 64MB
+                wal_level: replica
+                wal_log_hints: on
+                max_wal_senders: 10
+                max_replication_slots: 10
+                hot_standby: on
+                archive_mode: on
+                archive_timeout: 60s
+                ssl: on
+                password_encryption: scram-sha-256
+                log_min_duration_statement: 1000
+                log_lock_waits: on
+                log_temp_files: 0
+                log_checkpoints: on
+                log_autovacuum_min_duration: 0
+          pg_hba:
+            - local   all             postgres                                trust
+            - host    all             all                127.0.0.1/32         scram-sha-256
+            - host    all             all                ::1/128              scram-sha-256
+            - hostssl replication     standby            all                  scram-sha-256
+            - host    replication     standby            all                  scram-sha-256
+            - host    all             all                10.89.0.0/24         scram-sha-256
+    volumes:
+      - ./data/pg/1:/home/postgres/pgdata
+    networks:
+      infra:
+        ipv4_address: 10.89.0.60
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2048M
+    restart: unless-stopped
+
+  pg2:
+    image: ghcr.io/zalando/spilo-17:4.0-p2
+    container_name: pg2
+    hostname: pg2
+    depends_on: [etcd1, etcd2, etcd3, minio, pg1]
+    environment:
+      SCOPE: mall-pg
+      PGVERSION: "17"
+      ETCD3_HOSTS: "etcd1:2379,etcd2:2379,etcd3:2379"
+      PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
+      PGPASSWORD_SUPERUSER: postgres123
+      PGPASSWORD_REPLICATION: replicator123
+      PGPASSWORD_ADMIN: admin123
+      USE_WALG_BACKUP: "true"
+      USE_WALG_RESTORE: "true"
+      WAL_S3_BUCKET: wal-archive
+      WALE_S3_PREFIX: s3://wal-archive
+      AWS_ENDPOINT: http://minio:9000
+      AWS_S3_FORCE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: admin123
+      WALG_DISABLE_S3_SSE: "true"
+      BACKUP_SCHEDULE: "0 2 * * *"
+      BACKUP_NUM_TO_RETAIN: "7"
+    volumes:
+      - ./data/pg/2:/home/postgres/pgdata
+    networks:
+      infra:
+        ipv4_address: 10.89.0.61
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2048M
+    restart: unless-stopped
+
+  pg3:
+    image: ghcr.io/zalando/spilo-17:4.0-p2
+    container_name: pg3
+    hostname: pg3
+    depends_on: [etcd1, etcd2, etcd3, minio, pg1]
+    environment:
+      SCOPE: mall-pg
+      PGVERSION: "17"
+      ETCD3_HOSTS: "etcd1:2379,etcd2:2379,etcd3:2379"
+      PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
+      PGPASSWORD_SUPERUSER: postgres123
+      PGPASSWORD_REPLICATION: replicator123
+      PGPASSWORD_ADMIN: admin123
+      USE_WALG_BACKUP: "true"
+      USE_WALG_RESTORE: "true"
+      WAL_S3_BUCKET: wal-archive
+      WALE_S3_PREFIX: s3://wal-archive
+      AWS_ENDPOINT: http://minio:9000
+      AWS_S3_FORCE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: admin123
+      WALG_DISABLE_S3_SSE: "true"
+      BACKUP_SCHEDULE: "0 2 * * *"
+      BACKUP_NUM_TO_RETAIN: "7"
+    volumes:
+      - ./data/pg/3:/home/postgres/pgdata
+    networks:
+      infra:
+        ipv4_address: 10.89.0.62
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2048M
+    restart: unless-stopped
+
+  # HAProxy 双副本：通过 Patroni REST /master /replica 路由读写
+  pg-haproxy1:
+    image: docker.io/library/haproxy:3.0-alpine
+    container_name: pg-haproxy1
+    depends_on: [pg1, pg2, pg3]
+    volumes:
+      - ./postgres/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "5433:5000"   # 写口：直接打到当前 primary
+      - "5434:5001"   # 读口：负载均衡所有 replica
+      - "8008:8008"   # stats + /metrics
+    networks:
+      infra:
+        ipv4_address: 10.89.0.63
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  pg-haproxy2:
+    image: docker.io/library/haproxy:3.0-alpine
+    container_name: pg-haproxy2
+    depends_on: [pg1, pg2, pg3]
+    volumes:
+      - ./postgres/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "8009:8008"   # stats + /metrics（host 端口避让 pg-haproxy1）
+    networks:
+      infra:
+        ipv4_address: 10.89.0.64
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  pgbouncer:
+    image: docker.io/edoburu/pgbouncer:1.23.1
+    container_name: pgbouncer
+    depends_on: [pg-haproxy1]
+    user: "0:0"
+    volumes:
+      - ./postgres/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./postgres/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ports:
+      - "5432:5432"
+    networks:
+      infra:
+        ipv4_address: 10.89.0.65
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  # 一次性初始化容器：等 PgBouncer / leader 可用 → 创建业务用户、扩展、DB
+  pg-init:
+    image: docker.io/bitnami/postgresql:17
+    container_name: pg-init
+    depends_on: [pgbouncer]
+    environment:
+      PGHOST: pgbouncer
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres123
+    volumes:
+      - ./postgres/post-init.sh:/init/post-init.sh:ro
+      - ./postgres/init-users.sql:/init/init-users.sql:ro
+    entrypoint: ["/bin/bash", "/init/post-init.sh"]
+    restart: "no"
+    networks: [infra]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    container_name: postgres-exporter
+    depends_on: [pg-haproxy1, pg-init]
+    environment:
+      DATA_SOURCE_NAME: "postgresql://exporter:exporter123@pg-haproxy1:5000/postgres?sslmode=disable"
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
+    ports:
+      - "9187:9187"
+    networks:
+      infra:
+        ipv4_address: 10.89.0.66
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+    restart: unless-stopped
+
+  # =======================================================================
+  # MongoDB 3 节点 ReplicaSet（PSS）+ keyFile + PBM 备份
+  # =======================================================================
+  mongo1:
+    image: docker.io/library/mongo:8.0
+    container_name: mongo1
+    hostname: mongo1
+    command:
+      - bash
+      - -c
+      - |
+        install -m 0400 -o mongodb -g mongodb /pki-src/mongo.keyfile /tmp/keyfile
+        exec docker-entrypoint.sh mongod \
+          --replSet rs0 \
+          --bind_ip_all \
+          --keyFile /tmp/keyfile \
+          --auth \
+          --oplogSize 2048 \
+          --wiredTigerCacheSizeGB 1 \
+          --port 27017
+    volumes:
+      - ./data/mongo/1:/data/db
+      - ./pki:/pki-src:ro
+    ports:
+      - "27017:27017"
+    networks:
+      infra:
+        ipv4_address: 10.89.0.70
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2048M
+    restart: unless-stopped
+
+  mongo2:
+    image: docker.io/library/mongo:8.0
+    container_name: mongo2
+    hostname: mongo2
+    command:
+      - bash
+      - -c
+      - |
+        install -m 0400 -o mongodb -g mongodb /pki-src/mongo.keyfile /tmp/keyfile
+        exec docker-entrypoint.sh mongod \
+          --replSet rs0 \
+          --bind_ip_all \
+          --keyFile /tmp/keyfile \
+          --auth \
+          --oplogSize 2048 \
+          --wiredTigerCacheSizeGB 1 \
+          --port 27017
+    volumes:
+      - ./data/mongo/2:/data/db
+      - ./pki:/pki-src:ro
+    ports:
+      - "27018:27017"
+    networks:
+      infra:
+        ipv4_address: 10.89.0.71
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2048M
+    restart: unless-stopped
+
+  mongo3:
+    image: docker.io/library/mongo:8.0
+    container_name: mongo3
+    hostname: mongo3
+    command:
+      - bash
+      - -c
+      - |
+        install -m 0400 -o mongodb -g mongodb /pki-src/mongo.keyfile /tmp/keyfile
+        exec docker-entrypoint.sh mongod \
+          --replSet rs0 \
+          --bind_ip_all \
+          --keyFile /tmp/keyfile \
+          --auth \
+          --oplogSize 2048 \
+          --wiredTigerCacheSizeGB 1 \
+          --port 27017
+    volumes:
+      - ./data/mongo/3:/data/db
+      - ./pki:/pki-src:ro
+    ports:
+      - "27019:27017"
+    networks:
+      infra:
+        ipv4_address: 10.89.0.72
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2048M
+    restart: unless-stopped
+
+  # 一次性容器：rs.initiate + 创建用户（幂等）
+  mongo-init:
+    image: docker.io/library/mongo:8.0
+    container_name: mongo-init
+    depends_on: [mongo1, mongo2, mongo3]
+    volumes:
+      - ./mongodb/init-replset.js:/init/init-replset.js:ro
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+        echo "[mongo-init] waiting for mongo1..."
+        for i in $$(seq 1 60); do
+          mongosh --quiet --host mongo1:27017 --eval "db.adminCommand('ping')" >/dev/null 2>&1 && break
+          sleep 2
+        done
+        if mongosh --quiet --host mongo1:27017 -u root -p root123 --authenticationDatabase admin \
+            --eval "db.adminCommand({listDatabases:1})" >/dev/null 2>&1; then
+          echo "[mongo-init] auth enabled, running with creds (re-run path)"
+          mongosh --quiet --host mongo1:27017 -u root -p root123 --authenticationDatabase admin --file /init/init-replset.js
+        else
+          echo "[mongo-init] first run, using localhost exception"
+          mongosh --quiet --host mongo1:27017 --file /init/init-replset.js
+        fi
+        echo "[mongo-init] done"
+    restart: "no"
+    networks: [infra]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  pbm-agent1:
+    image: docker.io/percona/percona-backup-mongodb:2.5.0
+    container_name: pbm-agent1
+    depends_on: [mongo-init]
+    environment:
+      PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo1:27017/?authSource=admin"
+    volumes:
+      - ./mongodb/pbm-config.yaml:/etc/pbm/pbm-config.yaml:ro
+    command: ["pbm-agent"]
+    networks: [infra]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+    restart: unless-stopped
+
+  pbm-agent2:
+    image: docker.io/percona/percona-backup-mongodb:2.5.0
+    container_name: pbm-agent2
+    depends_on: [mongo-init]
+    environment:
+      PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo2:27017/?authSource=admin"
+    volumes:
+      - ./mongodb/pbm-config.yaml:/etc/pbm/pbm-config.yaml:ro
+    command: ["pbm-agent"]
+    networks: [infra]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+    restart: unless-stopped
+
+  pbm-agent3:
+    image: docker.io/percona/percona-backup-mongodb:2.5.0
+    container_name: pbm-agent3
+    depends_on: [mongo-init]
+    environment:
+      PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo3:27017/?authSource=admin"
+    volumes:
+      - ./mongodb/pbm-config.yaml:/etc/pbm/pbm-config.yaml:ro
+    command: ["pbm-agent"]
+    networks: [infra]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+    restart: unless-stopped
+
+  mongo-express:
+    image: docker.io/library/mongo-express:1.0.2-20-alpine3.19
+    container_name: mongo-express
+    depends_on: [mongo-init]
+    environment:
+      ME_CONFIG_MONGODB_URL: "mongodb://root:root123@mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0&authSource=admin"
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+      ME_CONFIG_OPTIONS_EDITORTHEME: ambiance
+    ports:
+      - "8091:8081"
+    networks:
+      infra:
+        ipv4_address: 10.89.0.73
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+    restart: unless-stopped
+
+  mongodb-exporter:
+    image: docker.io/percona/mongodb_exporter:0.43
+    container_name: mongodb-exporter
+    depends_on: [mongo-init]
+    command:
+      - "--mongodb.uri=mongodb://exporter:exporter123@mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0&authSource=admin"
+      - "--collect-all"
+      - "--compatible-mode"
+    ports:
+      - "9216:9216"
+    networks:
+      infra:
+        ipv4_address: 10.89.0.74
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+    restart: unless-stopped

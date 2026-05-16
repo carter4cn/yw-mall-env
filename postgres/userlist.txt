@@ -1,0 +1,7 @@
+; PgBouncer userlist
+; 只放 auth_user（其他用户走 auth_query 实时查 pg_shadow）
+; 格式: "username" "password"
+;
+; 注意：scram-sha-256 哈希形式更安全；这里 dev placeholder 用明文，
+; PgBouncer 兼容明文（启动时会自动按 password_encryption 处理）。
+"pgbouncer" "pgbouncer123"

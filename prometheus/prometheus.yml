@@ -9,3 +9,16 @@ scrape_configs:
   - job_name: 'etcd'
     static_configs:
       - targets: ['etcd1:2379']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb-exporter:9216']
+
+  - job_name: 'haproxy_pg'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['pg-haproxy1:8008', 'pg-haproxy2:8008']
