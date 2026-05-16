@@ -32,6 +32,7 @@ services:
   etcd2:
     image: quay.io/coreos/etcd:v3.5.11
     container_name: etcd2
+    profiles: ["etcd-ha"]
     command:
       - etcd
       - --name=etcd2
@@ -49,6 +50,7 @@ services:
   etcd3:
     image: quay.io/coreos/etcd:v3.5.11
     container_name: etcd3
+    profiles: ["etcd-ha"]
     command:
       - etcd
       - --name=etcd3
@@ -106,6 +108,7 @@ services:
   kafka2:
     image: docker.io/apache/kafka:4.2.0
     container_name: kafka2
+    profiles: ["kafka-ha"]
     environment:
       - KAFKA_NODE_ID=2
       - KAFKA_PROCESS_ROLES=broker,controller
@@ -128,6 +131,7 @@ services:
   kafka3:
     image: docker.io/apache/kafka:4.2.0
     container_name: kafka3
+    profiles: ["kafka-ha"]
     environment:
       - KAFKA_NODE_ID=3
       - KAFKA_PROCESS_ROLES=broker,controller
@@ -409,7 +413,7 @@ services:
   es2:
     image: docker.io/library/elasticsearch:9.3.3
     container_name: es2
-    profiles: ["search"]
+    profiles: ["search-ha"]
     environment:
       - node.name=es2
       - cluster.name=es-cluster
@@ -424,7 +428,7 @@ services:
   es3:
     image: docker.io/library/elasticsearch:9.3.3
     container_name: es3
-    profiles: ["search"]
+    profiles: ["search-ha"]
     environment:
       - node.name=es3
       - cluster.name=es-cluster
@@ -541,6 +545,7 @@ services:
   mysql-master2:
     image: docker.io/library/mysql:9.6.0
     container_name: mysql-master2
+    profiles: ["mysql-ha"]
     user: "999:999"
     environment:
       MYSQL_ROOT_PASSWORD: root123
@@ -571,6 +576,7 @@ services:
   mysql-slave2:
     image: docker.io/library/mysql:9.6.0
     container_name: mysql-slave2
+    profiles: ["mysql-ha"]
     user: "999:999"
     depends_on:
       - mysql-master2
@@ -793,7 +799,7 @@ services:
     image: ghcr.io/zalando/spilo-17:4.0-p2
     container_name: pg2
     hostname: pg2
-    profiles: ["pg"]
+    profiles: ["pg-ha"]
     depends_on: [etcd1, etcd2, etcd3, minio, pg1]
     environment:
       SCOPE: mall-pg
@@ -830,7 +836,7 @@ services:
     image: ghcr.io/zalando/spilo-17:4.0-p2
     container_name: pg3
     hostname: pg3
-    profiles: ["pg"]
+    profiles: ["pg-ha"]
     depends_on: [etcd1, etcd2, etcd3, minio, pg1]
     environment:
       SCOPE: mall-pg
@@ -888,7 +894,7 @@ services:
   pg-haproxy2:
     image: docker.io/library/haproxy:3.0-alpine
     container_name: pg-haproxy2
-    profiles: ["pg"]
+    profiles: ["pg-ha"]
     depends_on: [pg1, pg2, pg3]
     volumes:
       - ./postgres/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
@@ -1008,7 +1014,7 @@ services:
     image: docker.io/library/mongo:8.0
     container_name: mongo2
     hostname: mongo2
-    profiles: ["mongo"]
+    profiles: ["mongo-ha"]
     command:
       - bash
       - -c
@@ -1041,7 +1047,7 @@ services:
     image: docker.io/library/mongo:8.0
     container_name: mongo3
     hostname: mongo3
-    profiles: ["mongo"]
+    profiles: ["mongo-ha"]
     command:
       - bash
       - -c
@@ -1108,7 +1114,7 @@ services:
   pbm-agent1:
     image: docker.io/percona/percona-backup-mongodb:2.5.0
     container_name: pbm-agent1
-    profiles: ["mongo"]
+    profiles: ["mongo-ha"]
     depends_on: [mongo-init]
     environment:
       PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo1:27017/?authSource=admin"
@@ -1126,7 +1132,7 @@ services:
   pbm-agent2:
     image: docker.io/percona/percona-backup-mongodb:2.5.0
     container_name: pbm-agent2
-    profiles: ["mongo"]
+    profiles: ["mongo-ha"]
     depends_on: [mongo-init]
     environment:
       PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo2:27017/?authSource=admin"
@@ -1144,7 +1150,7 @@ services:
   pbm-agent3:
     image: docker.io/percona/percona-backup-mongodb:2.5.0
     container_name: pbm-agent3
-    profiles: ["mongo"]
+    profiles: ["mongo-ha"]
     depends_on: [mongo-init]
     environment:
       PBM_MONGODB_URI: "mongodb://pbm:pbm123@mongo3:27017/?authSource=admin"

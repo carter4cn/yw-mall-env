@@ -62,40 +62,68 @@ podman compose -f compose.yml up -d
 
 ## Compose Profiles（按需启停）
 
-env 默认只起 **yw-mall 必备的 baseline**（约 23 个容器：etcd / kafka / mysql / redis / minio / prometheus / grafana / homer / dtm）。其余按 `profiles:` 分组，opt-in 拉起：
+env 默认只起 **yw-mall 必备的 baseline**（约 17 个容器：etcd1、kafka1、mysql 1主1从、redis 1主2从+3 Sentinel、minio、prometheus、grafana、homer、dtm）。其余按 `profiles:` 分组：
 
-| Profile | 包含 | 大约峰值内存 |
+### 业务 profile（每个组件一个）
+
+| Profile | 包含 | 单节点内存 |
 |---|---|---|
-| _baseline_ | etcd×3、kafka×3、mysql×5、redis×6、minio、prometheus、grafana、homer、dtm | ~6 GB |
+| _baseline_ | etcd1、kafka1、mysql 1主1从、redis 全套、minio、prom+graf、homer、dtm | ~3.5 GB |
 | `mq-extras` | kafka-exporter、kafka-ui、etcdkeeper | ~400 MB |
 | `pulsar` | pulsar-zk + bookie×3 + broker×2 + manager + init | ~2 GB |
-| `search` | es1/2/3 | ~1.6 GB |
+| `search` | es1（默认单节点） | ~530 MB |
 | `olap` | doris-fe + be1/2 | ~1.3 GB |
 | `db-tools` | bytebase | ~300 MB |
-| `pg` | pg1/2/3、pg-haproxy1/2、pgbouncer、pg-init、postgres-exporter | ~2 GB |
-| `mongo` | mongo1/2/3、mongo-init、pbm-agent×3、mongo-express、mongodb-exporter | ~4 GB |
+| `pg` | pg1 + haproxy×1 + pgbouncer + pg-init + postgres-exporter | ~700 MB |
+| `mongo` | mongo1 + mongo-init + mongo-express + mongodb-exporter | ~800 MB |
 
-**用法：**
+### HA 扩展 profile（在业务 profile 之上叠加，把单节点变集群）
+
+| Profile | 加什么 | 增量内存 |
+|---|---|---|
+| `etcd-ha` | etcd2、etcd3 | ~60 MB |
+| `kafka-ha` | kafka2、kafka3 | ~1.7 GB |
+| `mysql-ha` | mysql-master2、mysql-slave2 | ~380 MB |
+| `search-ha` | es2、es3 | ~1.1 GB |
+| `pg-ha` | pg2、pg3、pg-haproxy2 | ~1.3 GB |
+| `mongo-ha` | mongo2、mongo3、pbm-agent×3 | ~3 GB |
+
+### 用法
 
 ```bash
-# 只起 baseline
-podman compose up -d
+# Slim 模式（开发默认，单机 < 16 GB 可用即可）
+podman compose -f compose.yml -f compose.lite.yml \
+  --profile pg --profile mongo --profile search up -d
 
-# baseline + PG
-podman compose --profile pg up -d
+# 加 HA 副本（演示完整生产拓扑，需要 ≥ 24 GB 可用内存）
+podman compose -f compose.yml \
+  --profile pg --profile pg-ha \
+  --profile mongo --profile mongo-ha \
+  --profile search --profile search-ha \
+  --profile kafka-ha --profile mysql-ha --profile etcd-ha \
+  up -d
 
-# baseline + PG + Mongo + Bytebase
-podman compose --profile pg --profile mongo --profile db-tools up -d
+# 用环境变量等价：
+COMPOSE_PROFILES=pg,pg-ha,mongo,mongo-ha podman compose up -d
 
-# 也可以用环境变量
-COMPOSE_PROFILES=pg,mongo,search podman compose up -d
-
-# 停掉某个 profile（不删 volume）
+# 停某个 profile（数据卷保留）
 podman compose --profile pulsar stop
 
-# 全部起（包括所有 profile）— 需要 ≥24 GB 可用内存
-COMPOSE_PROFILES=mq-extras,pulsar,search,olap,db-tools,pg,mongo podman compose up -d
+# 关掉 HA 副本回到 slim
+podman compose --profile pg-ha --profile mongo-ha --profile kafka-ha stop
 ```
+
+### Slim 模式（`compose.lite.yml`）做了什么
+
+针对单机内存 < 16 GB 可用的场景，叠加 `-f compose.lite.yml` 后会：
+
+- **Kafka**：单 broker + heap 256m + topic 复制因子 1
+- **ES**：`discovery.type=single-node` + heap 256m
+- **PG（Spilo）**：关掉 wal-g 备份、`shared_buffers=64MB`、`synchronous_mode=false`（单节点必须）
+- **Mongo**：`wiredTigerCacheSizeGB=0.25`、`oplogSize=512`、单成员 RS
+- **mongo-init / mysql-init**：切到 lite 版初始化脚本（只配单节点）
+
+Slim 模式下完整 yw-mall 链路（baseline + pg + mongo + search + mq-extras）总内存约 **5.7 GB**，加桌面 + IDE 跑在 16 GB 机器都顺手。后续要做 failover 演练再叠 HA profile。
 
 ### PostgreSQL / MongoDB 首次启动
 

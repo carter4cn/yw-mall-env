@@ -1,0 +1,138 @@
+# Slim 模式覆盖文件 — 在单机内存吃紧（< 32 GB 可用）时使用。
+# 用法：
+#   podman compose -f compose.yml -f compose.lite.yml --profile pg --profile mongo up -d
+#
+# 这份 override 只做"调参 + 切换初始化脚本"，不动 compose.yml 主结构。
+# 对应的 HA 副本（kafka2/3、etcd2/3、mysql-master2/slave2、pg2/3、mongo2/3 等）
+# 已经在主 compose.yml 里挪到了 *-ha profile，默认不起。
+
+services:
+
+  # ============================
+  # Kafka：单 broker、heap 减到 256m、所有 topic 复制因子 1
+  # ============================
+  kafka1:
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CLUSTER_ID=q1Sh-9_ISia_zwGINzRvyQ
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka1:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,EXTERNAL://:19092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka1:9092,EXTERNAL://localhost:19092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_HEAP_OPTS=-Xms256m -Xmx256m
+
+  kafka-exporter:
+    command:
+      - --kafka.server=kafka1:9092
+
+  # ============================
+  # Elasticsearch：单节点模式
+  # ============================
+  es1:
+    environment:
+      - node.name=es1
+      - cluster.name=es-cluster
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+
+  # ============================
+  # MySQL init：切到 lite 脚本，只配 master1 -> slave1
+  # ============================
+  mysql-init:
+    volumes:
+      - ./mysql/setup-replication-lite.sh:/setup-replication-lite.sh:ro
+    entrypoint: ["bash", "/setup-replication-lite.sh"]
+
+  # ============================
+  # PostgreSQL（Spilo）：关闭备份、缩小 shared_buffers、关闭 synchronous_mode（单节点不能开）
+  # ============================
+  pg1:
+    environment:
+      SCOPE: mall-pg
+      PGVERSION: "17"
+      ETCD3_HOSTS: "etcd1:2379"
+      PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
+      PGPASSWORD_SUPERUSER: postgres123
+      PGPASSWORD_REPLICATION: replicator123
+      PGPASSWORD_ADMIN: admin123
+      USE_WALG_BACKUP: "false"
+      USE_WALG_RESTORE: "false"
+      SPILO_CONFIGURATION: |
+        bootstrap:
+          dcs:
+            ttl: 30
+            loop_wait: 10
+            retry_timeout: 10
+            maximum_lag_on_failover: 1048576
+            synchronous_mode: false
+            postgresql:
+              use_pg_rewind: true
+              use_slots: true
+              parameters:
+                max_connections: 100
+                shared_buffers: 64MB
+                effective_cache_size: 256MB
+                work_mem: 4MB
+                maintenance_work_mem: 32MB
+                wal_level: replica
+                max_wal_senders: 5
+                max_replication_slots: 5
+                hot_standby: on
+                archive_mode: off
+                ssl: on
+                password_encryption: scram-sha-256
+          pg_hba:
+            - local   all             postgres                                trust
+            - host    all             all                127.0.0.1/32         scram-sha-256
+            - host    all             all                ::1/128              scram-sha-256
+            - host    replication     standby            all                  scram-sha-256
+            - host    all             all                10.89.0.0/24         scram-sha-256
+
+  # ============================
+  # MongoDB：单节点 RS、wiredTiger cache 0.25 GB、oplog 512 MB
+  # ============================
+  mongo1:
+    command:
+      - bash
+      - -c
+      - |
+        install -m 0400 -o mongodb -g mongodb /pki-src/mongo.keyfile /tmp/keyfile
+        exec docker-entrypoint.sh mongod \
+          --replSet rs0 \
+          --bind_ip_all \
+          --keyFile /tmp/keyfile \
+          --auth \
+          --oplogSize 512 \
+          --wiredTigerCacheSizeGB 0.25 \
+          --port 27017
+
+  # mongo-init 切到 lite 脚本（单成员 RS）
+  mongo-init:
+    volumes:
+      - ./mongodb/init-replset-lite.js:/init/init-replset-lite.js:ro
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+        echo "[mongo-init lite] waiting for mongo1..."
+        for i in $$(seq 1 60); do
+          mongosh --quiet --host mongo1:27017 --eval "db.adminCommand('ping')" >/dev/null 2>&1 && break
+          sleep 2
+        done
+        if mongosh --quiet --host mongo1:27017 -u root -p root123 --authenticationDatabase admin \
+            --eval "db.adminCommand({listDatabases:1})" >/dev/null 2>&1; then
+          echo "[mongo-init lite] auth on, using creds"
+          mongosh --quiet --host mongo1:27017 -u root -p root123 --authenticationDatabase admin --file /init/init-replset-lite.js
+        else
+          echo "[mongo-init lite] first run, localhost exception"
+          mongosh --quiet --host mongo1:27017 --file /init/init-replset-lite.js
+        fi
+        echo "[mongo-init lite] done"
