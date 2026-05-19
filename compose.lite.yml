@@ -97,8 +97,13 @@ services:
 
   # ============================
   # MongoDB：单节点 RS、wiredTiger cache 0.25 GB、oplog 512 MB
+  # MONGO_INITDB_ROOT_* 让 entrypoint 自动建 root，避开 keyFile+auth 下
+  # localhost exception 不允许 rs.initiate 的限制
   # ============================
   mongo1:
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root123
     command:
       - bash
       - -c
@@ -114,6 +119,7 @@ services:
           --port 27017
 
   # mongo-init 切到 lite 脚本（单成员 RS）
+  # root 用户由 mongo1 entrypoint 自动建好（MONGO_INITDB_ROOT_*），这里只用 root 跑 rs.initiate
   mongo-init:
     volumes:
       - ./mongodb/init-replset-lite.js:/init/init-replset-lite.js:ro
@@ -122,17 +128,12 @@ services:
       - -c
       - |
         set -e
-        echo "[mongo-init lite] waiting for mongo1..."
-        for i in $$(seq 1 60); do
-          mongosh --quiet --host mongo1:27017 --eval "db.adminCommand('ping')" >/dev/null 2>&1 && break
+        echo "[mongo-init lite] waiting for mongo1 + root user..."
+        for i in $$(seq 1 90); do
+          mongosh --quiet --host mongo1:27017 -u root -p root123 --authenticationDatabase admin \
+            --eval "db.adminCommand({listDatabases:1})" >/dev/null 2>&1 && break
           sleep 2
         done
-        if mongosh --quiet --host mongo1:27017 -u root -p root123 --authenticationDatabase admin \
-            --eval "db.adminCommand({listDatabases:1})" >/dev/null 2>&1; then
-          echo "[mongo-init lite] auth on, using creds"
-          mongosh --quiet --host mongo1:27017 -u root -p root123 --authenticationDatabase admin --file /init/init-replset-lite.js
-        else
-          echo "[mongo-init lite] first run, localhost exception"
-          mongosh --quiet --host mongo1:27017 --file /init/init-replset-lite.js
-        fi
+        echo "[mongo-init lite] running rs.initiate + create users"
+        mongosh --quiet --host mongo1:27017 -u root -p root123 --authenticationDatabase admin --file /init/init-replset-lite.js
         echo "[mongo-init lite] done"

@@ -64,7 +64,9 @@ EXCEPTION WHEN duplicate_object THEN
 END $$;
 
 -- 业务库授权
-GRANT CONNECT ON DATABASE mall TO app_rw, app_ro;
+-- pgbouncer 用户必须能 CONNECT 业务库才能完成 auth_query（PgBouncer 1.21+ 强制 auth_dbname 后，
+-- pgbouncer 用 auth_dbname 连业务库的目标 db 去查 pg_shadow，没 CONNECT 权限会报 "bouncer config error"）
+GRANT CONNECT ON DATABASE mall TO app_rw, app_ro, pgbouncer;
 \c mall
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
