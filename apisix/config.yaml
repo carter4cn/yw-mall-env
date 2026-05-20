@@ -1,0 +1,140 @@
+# Apache APISIX 3.10 配置 — yw-mall-env
+# 详细文档：https://apisix.apache.org/docs/apisix/admin-api/
+
+apisix:
+  node_listen: 9080              # 业务入口 (HTTP)
+  enable_admin: true
+  enable_dev_mode: false
+  enable_reuseport: true
+  enable_ipv6: false
+  proxy_mode: http               # 仅 HTTP；如需 TCP/UDP 代理改为 http&stream 并配 stream_proxy
+
+  # 允许的客户端 IP（生产环境务必收紧）
+  allow_admin:
+    - 0.0.0.0/0
+
+  router:
+    http: radixtree_uri          # 高性能 trie 路由
+    ssl: radixtree_sni
+
+deployment:
+  role: traditional               # 单实例模式（control_plane + data_plane 合一）
+  role_traditional:
+    config_provider: etcd
+  admin:
+    admin_listen:
+      ip: 0.0.0.0
+      port: 9180
+
+    # Admin API 鉴权 key — 生产必须改
+    admin_key:
+      - name: admin
+        key: edd1c9f034335f136f87ad84b625c8f1
+        role: admin
+      - name: viewer
+        key: 4054f7cf07e344346cd3f287985e76a2
+        role: viewer
+
+    allow_admin:
+      - 0.0.0.0/0
+
+  etcd:
+    host:
+      - "http://etcd1:2379"       # ★ 复用 yw-mall-env 现有 etcd
+    prefix: /apisix
+    timeout: 30
+
+# ---------------- Plugins ----------------
+plugins:
+  - real-ip
+  - client-control
+  - proxy-control
+  - request-id
+  - zipkin
+  - ext-plugin-pre-req
+  - fault-injection
+  - mocking
+  - serverless-pre-function
+  - cors
+  - ip-restriction
+  - ua-restriction
+  - referer-restriction
+  - csrf
+  - uri-blocker
+  - request-validation
+  - chaitin-waf
+  - openid-connect
+  - cas-auth
+  - authz-casbin
+  - authz-casdoor
+  - wolf-rbac
+  - ldap-auth
+  - hmac-auth
+  - basic-auth
+  - key-auth
+  - consumer-restriction
+  - forward-auth
+  - opa
+  - authz-keycloak
+  - proxy-cache
+  - body-transformer
+  - proxy-mirror
+  - proxy-rewrite
+  - workflow
+  - api-breaker
+  - traffic-split
+  - limit-conn
+  - limit-count
+  - limit-req
+  - gzip
+  - server-info
+  - traffic-split
+  - redirect
+  - response-rewrite
+  - mqtt-proxy
+  - grpc-transcode
+  - grpc-web
+  - public-api
+  - prometheus              # ★ Prometheus exporter
+  - datadog
+  - loki-logger
+  - elasticsearch-logger
+  - echo
+  - loggly
+  - http-logger
+  - splunk-hec-logging
+  - skywalking-logger
+  - google-cloud-logging
+  - sls-logger
+  - tcp-logger
+  - kafka-logger            # 配合 yw-mall-env Kafka 用
+  - rocketmq-logger
+  - syslog
+  - udp-logger
+  - file-logger
+  - clickhouse-logger
+  - tencent-cloud-cls
+  - inspect
+  - opentelemetry           # ★ OpenTelemetry，对接 future Jaeger/Tempo
+  - example-plugin
+  - aws-lambda
+  - azure-functions
+  - openwhisk
+  - openfunction
+  - serverless-post-function
+  - ext-plugin-post-req
+  - ext-plugin-post-resp
+
+plugin_attr:
+  prometheus:
+    enable_export_server: true
+    export_addr:
+      ip: 0.0.0.0
+      port: 9091
+    export_uri: /apisix/prometheus/metrics
+    metric_prefix: apisix_
+  server-info:
+    report_ttl: 60
+  log-rotate:
+    interval: 3600
+    max_kept: 168

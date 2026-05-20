@@ -22,3 +22,8 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ['pg-haproxy1:8008', 'pg-haproxy2:8008']
+
+  - job_name: 'apisix'
+    metrics_path: /apisix/prometheus/metrics
+    static_configs:
+      - targets: ['apisix:9091']

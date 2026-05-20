@@ -60,6 +60,40 @@ User: root  Password: root123  Database: dev
 | monitor | monitor123 | ProxySQL monitor |
 | proxysql | proxysql123 | Application access |
 
+## API Gateway
+
+### APISIX (Apache, etcd-backed)
+
+| Component | Version | Role | Port (Host) | IP |
+|-----------|---------|------|-------------|----|
+| apisix | 3.10.0-debian | 数据面 + Admin | **9080** (HTTP) / **9443** (HTTPS) / **9091** (Prom) / **9180** (Admin) | 10.89.0.80 |
+| apisix-dashboard | 3.0.1-alpine | Web UI | **9085** | 10.89.0.81 |
+
+**控制面**：复用 `etcd1:2379`，prefix `/apisix`。
+
+**Admin API（创建路由示例）：**
+```
+curl -X PUT \
+  -H "X-API-KEY: edd1c9f034335f136f87ad84b625c8f1" \
+  http://localhost:9180/apisix/admin/routes/my-route \
+  -d '{
+    "uri": "/api/v1/*",
+    "upstream": { "type": "roundrobin", "nodes": { "my-service:8080": 1 } }
+  }'
+```
+
+**Dashboard：** http://localhost:9085 — admin / admin123
+
+**Prometheus metrics：** http://localhost:9091/apisix/prometheus/metrics（已接入 Grafana 数据源）
+
+**Admin API Keys（dev placeholder，生产改）：**
+| 角色 | Key |
+|------|-----|
+| admin | edd1c9f034335f136f87ad84b625c8f1 |
+| viewer | 4054f7cf07e344346cd3f287985e76a2 |
+
+---
+
 ### PostgreSQL HA (Patroni + etcd + HAProxy + PgBouncer)
 
 | Component | Version | Role | Port (Host) | IP |
@@ -268,6 +302,11 @@ curl http://localhost:8888:9200/_cluster/health?pretty
 | Port | Service |
 |------|---------|
 | 8888 | Homer (Dashboard) |
+| 9080 | APISIX 业务入口 (HTTP) |
+| 9085 | APISIX Dashboard |
+| 9091 | APISIX Prometheus metrics |
+| 9180 | APISIX Admin API |
+| 9443 | APISIX 业务入口 (HTTPS) |
 | 2379 | etcd |
 | 3000 | Grafana |
 | 5432 | PgBouncer (PostgreSQL entry) |

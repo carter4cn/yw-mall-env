@@ -1198,3 +1198,48 @@ services:
           cpus: "0.2"
           memory: 128M
     restart: unless-stopped
+
+  # =======================================================================
+  # APISIX 网关 — 复用现有 etcd 作为控制面，参见 apisix/config.yaml
+  # 业务入口:9080 / Admin API:9180 / Prometheus:9091 / Dashboard:9000
+  # =======================================================================
+  apisix:
+    image: docker.io/apache/apisix:3.10.0-debian
+    container_name: apisix
+    profiles: ["gateway"]
+    depends_on: [etcd1]
+    volumes:
+      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+    ports:
+      - "9080:9080"   # HTTP 业务
+      - "9443:9443"   # HTTPS
+      - "9091:9091"   # Prometheus metrics
+      - "9180:9180"   # Admin API
+    networks:
+      infra:
+        ipv4_address: 10.89.0.80
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    restart: unless-stopped
+
+  apisix-dashboard:
+    image: docker.io/apache/apisix-dashboard:3.0.1-alpine
+    container_name: apisix-dashboard
+    profiles: ["gateway"]
+    depends_on: [etcd1, apisix]
+    volumes:
+      - ./apisix/dashboard.yaml:/usr/local/apisix-dashboard/conf/conf.yaml:ro
+    ports:
+      - "9085:9000"   # 9000 已被 MinIO 占，host 侧用 9085
+    networks:
+      infra:
+        ipv4_address: 10.89.0.81
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+    restart: unless-stopped

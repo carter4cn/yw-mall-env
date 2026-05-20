@@ -76,6 +76,7 @@ env 默认只起 **yw-mall 必备的 baseline**（约 17 个容器：etcd1、kaf
 | `db-tools` | bytebase | ~300 MB |
 | `pg` | pg1 + haproxy×1 + pgbouncer + pg-init + postgres-exporter | ~700 MB |
 | `mongo` | mongo1 + mongo-init + mongo-express + mongodb-exporter | ~800 MB |
+| `gateway` | apisix + apisix-dashboard | ~200 MB |
 
 ### HA 扩展 profile（在业务 profile 之上叠加，把单节点变集群）
 

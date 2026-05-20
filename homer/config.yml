@@ -64,6 +64,25 @@ services:
         tag: "mongo"
         target: "_blank"
 
+  - name: "API Gateway"
+    icon: "fas fa-shield-alt"
+    items:
+      - name: "APISIX Dashboard"
+        subtitle: "admin / admin123"
+        url: "http://localhost:9085"
+        tag: "gateway"
+        target: "_blank"
+      - name: "APISIX 业务入口"
+        subtitle: "Proxy entry on :9080"
+        url: "http://localhost:9080"
+        tag: "gateway"
+        target: "_blank"
+      - name: "APISIX Admin API"
+        subtitle: "X-API-KEY required | port 9180"
+        url: "http://localhost:9180/apisix/admin/routes"
+        tag: "gateway"
+        target: "_blank"
+
   - name: "Storage & Search"
     icon: "fas fa-hdd"
     items:

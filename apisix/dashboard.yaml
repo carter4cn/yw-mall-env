@@ -1,0 +1,84 @@
+# APISIX Dashboard 3.0 配置
+# 详细文档：https://apisix.apache.org/docs/dashboard/USER_GUIDE
+
+conf:
+  listen:
+    host: 0.0.0.0
+    port: 9000
+
+  allow_list:
+    - 0.0.0.0/0
+
+  etcd:
+    endpoints:
+      - "etcd1:2379"            # ★ 复用 yw-mall-env etcd
+    prefix: /apisix
+    # username:
+    # password:
+
+  log:
+    error_log:
+      level: warn
+      file_path: logs/error.log
+    access_log:
+      file_path: logs/access.log
+
+  security:
+    access_control_allow_origin: "*"
+    access_control_allow_credentials: true
+    access_control_allow_headers: "Authorization"
+    access_control-allow_methods: "*"
+    x_frame_options: "deny"
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:;"
+
+authentication:
+  secret: yw-mall-env-apisix-dashboard-secret-change-me
+  expire_time: 3600
+  users:
+    - username: admin
+      password: admin123        # ★ 生产改
+    - username: viewer
+      password: viewer123
+
+plugins:
+  # 这里只列 dashboard 默认认识的插件，跟 apisix 数据面的实际启用是两回事
+  - api-breaker
+  - authz-keycloak
+  - basic-auth
+  - batch-requests
+  - consumer-restriction
+  - cors
+  - echo
+  - fault-injection
+  - file-logger
+  - grpc-transcode
+  - hmac-auth
+  - http-logger
+  - ip-restriction
+  - jwt-auth
+  - kafka-logger
+  - key-auth
+  - limit-conn
+  - limit-count
+  - limit-req
+  - node-status
+  - openid-connect
+  - opentelemetry
+  - prometheus
+  - proxy-cache
+  - proxy-mirror
+  - proxy-rewrite
+  - redirect
+  - referer-restriction
+  - request-id
+  - request-validation
+  - response-rewrite
+  - serverless-post-function
+  - serverless-pre-function
+  - skywalking
+  - syslog
+  - tcp-logger
+  - udp-logger
+  - uri-blocker
+  - wolf-rbac
+  - zipkin
