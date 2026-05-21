@@ -1243,3 +1243,45 @@ services:
           cpus: "0.3"
           memory: 256M
     restart: unless-stopped
+
+  # =======================================================================
+  # 日志聚合 — Loki + Promtail (profile: logs)
+  # Promtail 通过 podman socket 自动发现容器（yw-mall-deploy_* + infra），
+  # go-zero JSON 日志在 Promtail pipeline 解析 → Loki → Grafana (Explore)
+  # =======================================================================
+  loki:
+    image: docker.io/grafana/loki:3.2.1
+    container_name: loki
+    profiles: ["logs"]
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - ./data/loki:/loki
+    ports:
+      - "3100:3100"
+    networks: [infra]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    restart: unless-stopped
+
+  promtail:
+    image: docker.io/grafana/promtail:3.2.1
+    container_name: promtail
+    profiles: ["logs"]
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ./loki/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      # podman socket 路径 — rootless 模式在 $XDG_RUNTIME_DIR
+      - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
+      - ./data/promtail:/tmp
+    networks: [infra]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 128M
+    restart: unless-stopped
+    depends_on: [loki]
