@@ -200,6 +200,32 @@ put "mall-api-admin" "/api/admin/* → mall-api 内网/JWT 强校验" '{
   }
 }'
 
+# ---- Sprint 5 注册/登录 严限流（priority=100 高于 catchall + /api/user 200rps）----
+put "mall-auth-sendcode" "/api/auth/send-code 严限流 10rps + ua 反爬" '{
+  "name": "mall-auth-sendcode",
+  "uri": "/api/auth/send-code",
+  "upstream_id": "mall-api",
+  "priority": 100,
+  "plugins": {
+    "limit-req": { "rate": 10, "burst": 5, "key_type": "var", "key": "remote_addr", "rejected_code": 429 },
+    "ua-restriction": { "bypass_missing": false,
+      "denylist": ["python-requests", "Go-http-client", "curl", "Wget"]
+    },
+    "cors": { "allow_origins": "*" }
+  }
+}'
+
+put "mall-auth-register" "/api/auth/register 限流 5rps" '{
+  "name": "mall-auth-register",
+  "uri": "/api/auth/register",
+  "upstream_id": "mall-api",
+  "priority": 100,
+  "plugins": {
+    "limit-req": { "rate": 5, "burst": 3, "key_type": "var", "key": "remote_addr", "rejected_code": 429 },
+    "cors": { "allow_origins": "*" }
+  }
+}'
+
 # ---- 通用 /api/* 兜底（必须放后面，优先级最低）----
 put "mall-api-catchall" "/api/* → mall-api 兜底" '{
   "name": "mall-api-catchall",
