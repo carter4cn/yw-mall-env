@@ -3,6 +3,11 @@
 
 apisix:
   node_listen: 9080              # 业务入口 (HTTP)
+  # 让 upstream 里的 hostname 节点定期重解析
+  # （podman/docker 容器 IP 会随 recreate 漂移，避免 APISIX 缓存固化导致 502）
+  dns_resolver:
+    - "10.89.0.1"               # podman embedded DNS
+  dns_resolver_valid: 30        # seconds — 与 mall-fe nginx resolver TTL 对齐
   enable_admin: true
   enable_dev_mode: false
   enable_reuseport: true
