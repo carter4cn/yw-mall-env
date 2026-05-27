@@ -253,6 +253,22 @@ put "mall-admin-api" "/admin/* → mall-admin-api 后台" '{
   }
 }'
 
+# ---- M1 商家工作台 API（与 admin 同 upstream，只是 prefix 不同）----
+put "mall-merchant-api" "/merchant/* → mall-admin-api 商家工作台" '{
+  "name": "mall-merchant-api",
+  "uri": "/merchant/*",
+  "upstream_id": "mall-admin-api",
+  "plugins": {
+    "limit-req": { "rate": 50, "burst": 20, "key_type": "var", "key": "remote_addr", "rejected_code": 429 },
+    "request-id": { "include_in_response": true },
+    "kafka-logger": {
+      "brokers": [{ "host": "kafka1", "port": 9092 }],
+      "kafka_topic": "apisix-audit-admin",
+      "include_req_body": false
+    }
+  }
+}'
+
 # ---- 前端静态（最低优先级，匹配 / ）----
 put "mall-fe" "/* → mall-fe 前端 fallback" '{
   "name": "mall-fe",
