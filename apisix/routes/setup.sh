@@ -11,6 +11,15 @@ set -euo pipefail
 ADMIN_URL="${ADMIN_URL:-http://localhost:9180}"
 ADMIN_KEY="${ADMIN_KEY:-edd1c9f034335f136f87ad84b625c8f1}"
 
+# Upstream 节点地址支持环境变量覆盖：
+# - 默认（prod / 全栈容器化 compose up）：用 yw-mall-deploy_<svc>_1 容器名
+# - dev 模式（业务跑宿主进程、apisix 跑容器）：导出 = host.containers.internal
+#   bash setup.sh 即可（podman 自动注入这个 DNS 指向 host gateway）
+# 单一脚本同时覆盖两个部署形态，避免 dev/prod 两份配置漂移。
+MALL_API_NODE="${MALL_API_NODE:-yw-mall-deploy_mall-api_1:18888}"
+MALL_ADMIN_API_NODE="${MALL_ADMIN_API_NODE:-yw-mall-deploy_mall-admin-api_1:18999}"
+MALL_FE_NODE="${MALL_FE_NODE:-yw-mall-deploy_mall-fe_1:80}"
+
 api() {
   local method=$1 path=$2
   shift 2
@@ -51,7 +60,7 @@ put_upstream "mall-api" "yw-mall HTTP BFF" '{
   "name": "mall-api",
   "type": "roundrobin",
   "scheme": "http",
-  "nodes": { "yw-mall-deploy_mall-api_1:18888": 1 },
+  "nodes": { "'"$MALL_API_NODE"'": 1 },
   "timeout": { "connect": 3, "send": 30, "read": 30 },
   "retries": 1,
   "checks": {
@@ -69,7 +78,7 @@ put_upstream "mall-admin-api" "yw-mall 后台 BFF" '{
   "name": "mall-admin-api",
   "type": "roundrobin",
   "scheme": "http",
-  "nodes": { "yw-mall-deploy_mall-admin-api_1:18999": 1 },
+  "nodes": { "'"$MALL_ADMIN_API_NODE"'": 1 },
   "timeout": { "connect": 3, "send": 30, "read": 30 }
 }'
 
@@ -77,7 +86,7 @@ put_upstream "mall-fe" "yw-mall 前端" '{
   "name": "mall-fe",
   "type": "roundrobin",
   "scheme": "http",
-  "nodes": { "yw-mall-deploy_mall-fe_1:80": 1 }
+  "nodes": { "'"$MALL_FE_NODE"'": 1 }
 }'
 
 echo ""
